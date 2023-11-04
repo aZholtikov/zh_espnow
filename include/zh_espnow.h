@@ -64,7 +64,7 @@ extern "C"
     esp_err_t zh_espnow_init(zh_espnow_init_config_t *config);
 
     /**
-     * @brief      Dinitialize ESP-NOW interface.
+     * @brief      Deinitialize ESP-NOW interface.
      *
      */
     void zh_espnow_deinit(void);
