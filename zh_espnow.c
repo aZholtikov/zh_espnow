@@ -125,12 +125,12 @@ static void s_zh_espnow_processing(void *pvParameter)
         RESEND_ESPNOW_MESSAGE:
             esp_now_send(send_data->mac_addr, send_data->data, send_data->data_len);
             EventBits_t bit = xEventGroupWaitBits(s_zh_espnow_send_cb_status, DATA_SEND_SUCCESS | DATA_SEND_FAIL, pdTRUE, pdFALSE, 50 / portTICK_PERIOD_MS);
-            if (bit & DATA_SEND_SUCCESS != 0)
+            if ((bit & DATA_SEND_SUCCESS) != 0)
             {
                 on_send->status = ESP_NOW_SEND_SUCCESS;
                 esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portMAX_DELAY);
             }
-            else if (bit & DATA_SEND_FAIL != 0)
+            else if ((bit & DATA_SEND_FAIL) != 0)
             {
                 if (attempted_transmission < s_zh_espnow_init_config.max_attempts)
                 {
