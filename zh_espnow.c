@@ -119,18 +119,18 @@ static void s_zh_espnow_processing(void *pvParameter)
             zh_espnow_queue_data_t *send_data = &espnow_queue.data;
             memcpy(peer->peer_addr, send_data->mac_addr, 6);
             esp_now_add_peer(peer);
-            uint8_t attempted_transmission = {0};
+            uint8_t attempted_transmission = 1;
             on_send = calloc(1, sizeof(zh_espnow_event_on_send_t));
             memcpy(on_send->mac_addr, send_data->mac_addr, 6);
         RESEND_ESPNOW_MESSAGE:
             esp_now_send(send_data->mac_addr, send_data->data, send_data->data_len);
             EventBits_t bit = xEventGroupWaitBits(s_zh_espnow_send_cb_status, DATA_SEND_SUCCESS | DATA_SEND_FAIL, pdTRUE, pdFALSE, 50 / portTICK_PERIOD_MS);
-            if (bit & DATA_SEND_SUCCESS)
+            if (bit & DATA_SEND_SUCCESS != 0)
             {
                 on_send->status = ESP_NOW_SEND_SUCCESS;
                 esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portMAX_DELAY);
             }
-            else if (bit & DATA_SEND_FAIL)
+            else if (bit & DATA_SEND_FAIL != 0)
             {
                 if (attempted_transmission < s_zh_espnow_init_config.max_attempts)
                 {
@@ -147,7 +147,7 @@ static void s_zh_espnow_processing(void *pvParameter)
             break;
         case ZH_ESPNOW_RECV:
             recv_data = &espnow_queue.data;
-            esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + 6 + 1, portMAX_DELAY);
+            esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + 7, portMAX_DELAY);
             break;
         default:
             break;
