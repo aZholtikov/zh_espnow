@@ -1,6 +1,5 @@
 #pragma once
 
-#include "stdio.h"
 #include "string.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
@@ -13,7 +12,6 @@
         .task_priority = 4,             \
         .stack_size = 2048,             \
         .queue_size = 32,               \
-        .max_attempts = 5,              \
         .wifi_interface = WIFI_IF_STA   \
     }
 
@@ -22,35 +20,40 @@ extern "C"
 {
 #endif
 
-    typedef struct
+    typedef struct zh_espnow_init_config_t
     {
         uint8_t task_priority;
         uint16_t stack_size;
         uint8_t queue_size;
-        uint8_t max_attempts;
         wifi_interface_t wifi_interface;
-    } zh_espnow_init_config_t;
+    } __attribute__((packed)) zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
 
-    typedef enum
+    typedef enum zh_espnow_event_type_t
     {
         ZH_ESPNOW_ON_RECV_EVENT,
         ZH_ESPNOW_ON_SEND_EVENT
-    } zh_espnow_event_type_t;
+    } __attribute__((packed)) zh_espnow_event_type_t;
 
-    typedef struct
+    typedef enum zh_espnow_on_send_event_type_t
     {
-        uint8_t mac_addr[6];
-        esp_now_send_status_t status;
-    } zh_espnow_event_on_send_t;
+        ZH_ESPNOW_SEND_SUCCESS,
+        ZH_ESPNOW_SEND_FAIL
+    } __attribute__((packed)) zh_espnow_on_send_event_type_t;
 
-    typedef struct
+    typedef struct zh_espnow_event_on_send_t
     {
-        uint8_t mac_addr[6];
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN];
+        zh_espnow_on_send_event_type_t status;
+    } __attribute__((packed)) zh_espnow_event_on_send_t;
+
+    typedef struct zh_espnow_event_on_recv_t
+    {
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN];
         uint8_t *data;
         uint8_t data_len;
-    } zh_espnow_event_on_recv_t;
+    } __attribute__((packed)) zh_espnow_event_on_recv_t;
 
     /**
      * @brief      Initialize ESP-NOW interface.
