@@ -24,6 +24,7 @@ Sending and receiving messages:
 ```c
 #include "nvs_flash.h"
 #include "esp_netif.h"
+#include "esp_random.h"
 #include "zh_espnow.h"
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
