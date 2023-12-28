@@ -22,7 +22,6 @@ In the application, add the component:
 Sending and receiving messages:
 
 ```c
-#include "stdio.h"
 #include "nvs_flash.h"
 #include "esp_netif.h"
 #include "zh_espnow.h"
@@ -32,7 +31,14 @@ Sending and receiving messages:
 void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
 uint8_t target[6] = {0x34, 0x94, 0x54, 0x24, 0xA3, 0x41};
-char *message = "Hello World!";
+
+typedef struct example_message_t
+{
+    char char_value[30];
+    int int_value;
+    float float_value;
+    bool bool_value;
+} example_message_t;
 
 void app_main(void)
 {
@@ -44,35 +50,39 @@ void app_main(void)
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
     zh_espnow_init_config_t zh_espnow_init_config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(zh_espnow_init(&zh_espnow_init_config));
+    zh_espnow_init(&zh_espnow_init_config);
     esp_event_handler_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL);
+    example_message_t send_message;
     for (;;)
     {
-        zh_espnow_send(NULL, (uint8_t *)message, strlen(message));
+        strcpy(send_message.char_value, "THIS IS A CHAR");
+        send_message.int_value = esp_random();
+        send_message.float_value = 1.234;
+        send_message.bool_value = false;
+        zh_espnow_send(NULL, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
-        zh_espnow_send(target, (uint8_t *)message, strlen(message));
+        zh_espnow_send(target, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
 
 void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-    zh_espnow_event_on_recv_t *recv_data = NULL;
-    zh_espnow_event_on_send_t *send_data = NULL;
     switch (event_id)
     {
-    case ZH_ESPNOW_ON_RECV_EVENT:
-        recv_data = event_data;
-        char *data = NULL;
-        data = (char *)calloc(1, recv_data->data_len + 1);
-        memcpy(data, recv_data->data, recv_data->data_len);
-        printf("Message from MAC %02X:%02X:%02X:%02X:%02X:%02X is received. Data lenght %d bytes. Message: %s\n", MAC2STR(recv_data->mac_addr), recv_data->data_len, data);
-        free(data);
-        free(recv_data->data);
+    case ZH_ESPNOW_ON_RECV_EVENT:;
+        zh_espnow_event_on_recv_t *recv_data = event_data;
+        printf("Message from MAC %02X:%02X:%02X:%02X:%02X:%02X is received. Data lenght %d bytes.\n", MAC2STR(recv_data->mac_addr), recv_data->data_len);
+        example_message_t *recv_message = (example_message_t *)recv_data->data;
+        printf("Char %s\n", recv_message->char_value);
+        printf("Int %d\n", recv_message->int_value);
+        printf("Float %f\n", recv_message->float_value);
+        printf("Bool %d\n", recv_message->bool_value);
+        free(recv_data->data); // Do not delete to avoid memory leaks!
         break;
-    case ZH_ESPNOW_ON_SEND_EVENT:
-        send_data = event_data;
-        if (send_data->status == ESP_NOW_SEND_SUCCESS)
+    case ZH_ESPNOW_ON_SEND_EVENT:;
+        zh_espnow_event_on_send_t *send_data = event_data;
+        if (send_data->status == ZH_ESPNOW_SEND_SUCCESS)
         {
             printf("Message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent success.\n", MAC2STR(send_data->mac_addr));
         }
