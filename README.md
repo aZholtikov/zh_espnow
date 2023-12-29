@@ -2,6 +2,19 @@
 
 There are two branches - for ESP8266 family and for ESP32 family. Please use the appropriate one.
 
+## Features
+
+1. The maximum size of transmitted data is up to 250 bytes.
+2. Support of any data types.
+3. All nodes are not visible to the network scanner.
+4. Not required a pre-pairings for data transfer.
+5. Broadcast or unicast data transmissions.
+6. Possibility uses WiFi AP or STA modes at the same time with ESP-NOW. For details see Attention.
+
+## Attention
+
+1. For correct work at ESP-NOW + STA mode your WiFi router must be set on channel 1.
+
 ## Using
 
 In an existing project, run the following command to install the component:
