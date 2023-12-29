@@ -136,7 +136,7 @@ static void s_zh_espnow_processing(void *pvParameter)
             free(on_send);
             break;
         case ZH_ESPNOW_RECV:;
-            zh_espnow_queue_data_t *recv_data = &espnow_queue.data;
+            zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&espnow_queue.data;
             esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + 7, portMAX_DELAY);
             break;
         default:
