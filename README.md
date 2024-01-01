@@ -66,12 +66,13 @@ void app_main(void)
     zh_espnow_init(&zh_espnow_init_config);
     esp_event_handler_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL);
     example_message_t send_message;
+    strcpy(send_message.char_value, "THIS IS A CHAR");
+    send_message.int_value = esp_random();
+    send_message.float_value = 1.234;
+    send_message.bool_value = false;
     for (;;)
     {
-        strcpy(send_message.char_value, "THIS IS A CHAR");
         send_message.int_value = esp_random();
-        send_message.float_value = 1.234;
-        send_message.bool_value = false;
         zh_espnow_send(NULL, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
         zh_espnow_send(target, (uint8_t *)&send_message, sizeof(send_message));
