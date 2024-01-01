@@ -67,7 +67,6 @@ void app_main(void)
     esp_event_handler_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL);
     example_message_t send_message;
     strcpy(send_message.char_value, "THIS IS A CHAR");
-    send_message.int_value = esp_random();
     send_message.float_value = 1.234;
     send_message.bool_value = false;
     for (;;)
