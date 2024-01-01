@@ -79,7 +79,7 @@ void zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t da
     xQueueSend(s_zh_espnow_queue_handle, &espnow_queue, portMAX_DELAY);
 }
 
-static void s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
+static void IRAM_ATTR s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
     if (status == ESP_NOW_SEND_SUCCESS)
     {
@@ -91,7 +91,7 @@ static void s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t s
     }
 }
 
-static void s_zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
+static void IRAM_ATTR s_zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
 {
     zh_espnow_queue_t espnow_queue = {0};
     zh_espnow_queue_data_t *recv_data = &espnow_queue.data;
