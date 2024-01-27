@@ -1,6 +1,4 @@
-# ESP32 ESP-IDF component for ESP-NOW interface
-
-There are two branches - for ESP8266 family and for ESP32 family. Please use the appropriate one.
+# ESP32 ESP-IDF and ESP8266 RTOS SDK component for ESP-NOW interface
 
 ## Features
 
@@ -21,7 +19,7 @@ In an existing project, run the following command to install the component:
 
 ```text
 cd ../your_project/components
-git clone -b esp32 --recursive http://git.zh.com.ru/alexey.zholtikov/zh_espnow.git
+git clone http://git.zh.com.ru/alexey.zholtikov/zh_espnow.git
 ```
 
 In the application, add the component:
@@ -37,7 +35,11 @@ Sending and receiving messages:
 ```c
 #include "nvs_flash.h"
 #include "esp_netif.h"
+#ifdef CONFIG_IDF_TARGET_ESP8266
+#include "esp_system.h"
+#else
 #include "esp_random.h"
+#endif
 #include "zh_espnow.h"
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
@@ -65,7 +67,11 @@ void app_main(void)
     esp_wifi_start();
     zh_espnow_init_config_t zh_espnow_init_config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
     zh_espnow_init(&zh_espnow_init_config);
+#ifdef CONFIG_IDF_TARGET_ESP8266
+    esp_event_handler_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL);
+#else
     esp_event_handler_instance_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL, NULL);
+#endif
     example_message_t send_message;
     strcpy(send_message.char_value, "THIS IS A CHAR");
     send_message.float_value = 1.234;

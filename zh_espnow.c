@@ -4,7 +4,11 @@
 #define ZH_ESPNOW_DATA_SEND_FAIL BIT1
 
 static void s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
+#ifdef CONFIG_IDF_TARGET_ESP8266
+static void s_zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
+#else
 static void s_zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
+#endif
 static void s_zh_espnow_processing(void *pvParameter);
 
 static EventGroupHandle_t s_zh_espnow_send_cb_status_event_group_handle = {0};
@@ -91,12 +95,20 @@ static void IRAM_ATTR s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_
     }
 }
 
+#ifdef CONFIG_IDF_TARGET_ESP8266
+static void IRAM_ATTR s_zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
+#else
 static void IRAM_ATTR s_zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
+#endif
 {
     zh_espnow_queue_t espnow_queue = {0};
     zh_espnow_queue_data_t *recv_data = &espnow_queue.data;
     espnow_queue.id = ZH_ESPNOW_RECV;
+#ifdef CONFIG_IDF_TARGET_ESP8266
+    memcpy(recv_data->mac_addr, mac_addr, ESP_NOW_ETH_ALEN);
+#else
     memcpy(recv_data->mac_addr, esp_now_info->src_addr, ESP_NOW_ETH_ALEN);
+#endif
     recv_data->data = calloc(1, data_len);
     memcpy(recv_data->data, data, data_len);
     recv_data->data_len = data_len;
