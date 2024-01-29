@@ -35,12 +35,12 @@ Sending and receiving messages:
 ```c
 #include "nvs_flash.h"
 #include "esp_netif.h"
+#include "zh_espnow.h"
 #ifdef CONFIG_IDF_TARGET_ESP8266
 #include "esp_system.h"
 #else
 #include "esp_random.h"
 #endif
-#include "zh_espnow.h"
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 
