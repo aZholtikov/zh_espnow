@@ -39,6 +39,10 @@ ESP_EVENT_DEFINE_BASE(ZH_ESPNOW);
 
 esp_err_t zh_espnow_init(zh_espnow_init_config_t *config)
 {
+    if (config == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
     if (esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE) == ESP_ERR_WIFI_NOT_INIT)
     {
         return ESP_ERR_WIFI_NOT_INIT;
@@ -63,8 +67,12 @@ void zh_espnow_deinit(void)
     vTaskDelete(s_zh_espnow_processing_task_handle);
 }
 
-void zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len)
+esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len)
 {
+    if (data == NULL || data_len == 0 || data_len > ESP_NOW_MAX_DATA_LEN)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
     uint8_t broadcast[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     zh_espnow_queue_t espnow_queue = {0};
     espnow_queue.id = ZH_ESPNOW_SEND;
@@ -81,6 +89,7 @@ void zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t da
     memcpy(send_data->data, data, data_len);
     send_data->data_len = data_len;
     xQueueSend(s_zh_espnow_queue_handle, &espnow_queue, portMAX_DELAY);
+    return ESP_OK;
 }
 
 static void IRAM_ATTR s_zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)

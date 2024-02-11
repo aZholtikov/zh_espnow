@@ -61,7 +61,8 @@ extern "C"
      * @param[in]  config  Pointer to ESP-NOW initialized configuration structure. Can point to a temporary variable.
      *
      * @return
-     *              - ESP_OK if initialization was successful
+     *              - ESP_OK if initialization was success
+     *              - ESP_ERR_INVALID_ARG if parameter error
      *              - ESP_ERR_WIFI_NOT_INIT if WiFi is not initialized by esp_wifi_init
      */
     esp_err_t zh_espnow_init(zh_espnow_init_config_t *config);
@@ -79,8 +80,11 @@ extern "C"
      * @param[in]  data      Pointer to a buffer containing the data for send.
      * @param[in]  data_len  Sending data length.
      *
+     * @return
+     *              - ESP_OK if sent was success
+     *              - ESP_ERR_INVALID_ARG if parameter error
      */
-    void zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len);
+    esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len);
 
 #ifdef __cplusplus
 }
