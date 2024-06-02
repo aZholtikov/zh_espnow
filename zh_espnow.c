@@ -1,7 +1,7 @@
 /**
  * @file
  * The main code of the zh_espnow component.
- * 
+ *
  */
 
 #include "zh_espnow.h"
@@ -13,7 +13,7 @@
 /// \endcond
 
 static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
-#ifdef CONFIG_IDF_TARGET_ESP8266
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
 static void _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
 #else
 static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
@@ -164,7 +164,7 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
     }
     if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
     {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error.");
+        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -182,13 +182,13 @@ static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
     }
 }
 
-#ifdef CONFIG_IDF_TARGET_ESP8266
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
 static void _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
 #else
 static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
 #endif
 {
-#ifdef CONFIG_IDF_TARGET_ESP8266
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue begin.", MAC2STR(mac_addr));
 #else
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue begin.", MAC2STR(esp_now_info->src_addr));
@@ -200,7 +200,7 @@ static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *dat
     }
     _queue_t queue = {0};
     queue.id = ON_RECV;
-#ifdef CONFIG_IDF_TARGET_ESP8266
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
     memcpy(queue.data.mac_addr, mac_addr, 6);
 #else
     memcpy(queue.data.mac_addr, esp_now_info->src_addr, 6);
@@ -221,14 +221,14 @@ static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *dat
     memset(queue.data.payload, 0, data_len);
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
-#ifdef CONFIG_IDF_TARGET_ESP8266
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(mac_addr));
 #else
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(esp_now_info->src_addr));
 #endif
     if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
     {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error.");
+        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
     }
 }
 
@@ -314,7 +314,7 @@ static void _processing(void *pvParameter)
             ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS) != ESP_OK)
             {
-                ESP_LOGE(TAG, "ESP-NOW message processing task internal error.");
+                ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
             }
             heap_caps_free(queue.data.payload);
             esp_now_del_peer(peer->peer_addr);
@@ -327,7 +327,7 @@ static void _processing(void *pvParameter)
             ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + 7, portTICK_PERIOD_MS) != ESP_OK)
             {
-                ESP_LOGE(TAG, "ESP-NOW message processing task internal error.");
+                ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
             }
             break;
         default:
