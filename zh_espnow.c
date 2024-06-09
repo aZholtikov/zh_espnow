@@ -62,10 +62,21 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
         ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi channel.");
         return ESP_ERR_INVALID_ARG;
     }
-    if (esp_wifi_set_channel(_init_config.wifi_channel, WIFI_SECOND_CHAN_NONE) != ESP_OK)
+    esp_err_t err = esp_wifi_set_channel(_init_config.wifi_channel, WIFI_SECOND_CHAN_NONE);
+    if (err == ESP_ERR_WIFI_NOT_INIT || err == ESP_ERR_WIFI_NOT_STARTED)
     {
         ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi not initialized.");
         return ESP_ERR_WIFI_NOT_INIT;
+    }
+    else if (err == ESP_FAIL)
+    {
+        uint8_t prim = 0;
+        wifi_second_chan_t sec = 0;
+        esp_wifi_get_channel(&prim, &sec);
+        if (prim != _init_config.wifi_channel)
+        {
+            ESP_LOGW(TAG, "ESP-NOW initialization warning. The device is connected to the router. Channel %d will be used for ESP-NOW.", prim);
+        }
     }
     _event_group_handle = xEventGroupCreate();
     _queue_handle = xQueueCreate(_init_config.queue_size, sizeof(_queue_t));
