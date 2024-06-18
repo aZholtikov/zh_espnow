@@ -19,8 +19,6 @@
 1. For correct operation in ESP-NOW + STA mode, your WiFi router must be set to the same channel as ESP-NOW.
 2. All devices on the network must have the same WiFi channel.
 
-## [Function description](http://zh-espnow.zh.com.ru)
-
 ## Using
 
 In an existing project, run the following command to install the component:

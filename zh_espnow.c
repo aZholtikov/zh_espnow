@@ -1,16 +1,8 @@
-/**
- * @file
- * The main code of the zh_espnow component.
- *
- */
-
 #include "zh_espnow.h"
 
-/// \cond
 #define DATA_SEND_SUCCESS BIT0
 #define DATA_SEND_FAIL BIT1
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
-/// \endcond
 
 static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
@@ -29,7 +21,6 @@ static zh_espnow_init_config_t _init_config = {0};
 static bool _is_initialized = false;
 static uint8_t _attempts = 0;
 
-/// \cond
 typedef struct
 {
     enum
@@ -46,7 +37,6 @@ typedef struct
 } _queue_t;
 
 ESP_EVENT_DEFINE_BASE(ZH_ESPNOW);
-/// \endcond
 
 esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
 {
@@ -59,7 +49,7 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
     _init_config = *config;
     if (_init_config.wifi_channel < 1 || _init_config.wifi_channel > 14)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi channel.");
+        ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi channel incorrect.");
         return ESP_ERR_INVALID_ARG;
     }
     esp_err_t err = esp_wifi_set_channel(_init_config.wifi_channel, WIFI_SECOND_CHAN_NONE);
