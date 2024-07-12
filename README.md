@@ -72,8 +72,8 @@ void app_main(void)
     esp_wifi_init(&wifi_init_config);
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
-    zh_espnow_init_config_t zh_espnow_init_config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
-    zh_espnow_init(&zh_espnow_init_config);
+    zh_espnow_init_config_t espnow_init_config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
+    zh_espnow_init(&espnow_init_config);
 #ifdef CONFIG_IDF_TARGET_ESP8266
     esp_event_handler_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL);
 #else
