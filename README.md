@@ -3,21 +3,24 @@
 ## Tested on
 
 1. ESP8266 RTOS_SDK v3.4
-2. ESP32 ESP-IDF v5.2
+2. ESP32 ESP-IDF v5.4
 
 ## Features
 
-1. The maximum size of transmitted data is up to 250 bytes.
+1. The maximum size of the transmitted data is up to 250 / 1490 bytes. Please see attention for details.
 2. Support of any data types.
 3. All nodes are not visible to the network scanner.
 4. Not required a pre-pairings for data transfer.
 5. Broadcast or unicast data transmissions.
-6. Possibility uses WiFi AP or STA modes at the same time with ESP-NOW.
+6. Possibility uses WiFi AP or STA modes at the same time with ESP-NOW. Please see attention for details.
 
 ## Attention
 
-1. For correct operation in ESP-NOW + STA mode, your WiFi router must be set to the same channel as ESP-NOW.
-2. All devices on the network must have the same WiFi channel.
+1. For correct operation ESP-NOW interface must be the same as the WiFi interface (except in the case of APSTA mode - the ESP-NOW interface can be anything).
+2. For correct operation in ESP-NOW + STA mode, your WiFi router must be set to the same channel as ESP-NOW.
+3. All devices on the network must have the same WiFi channel.
+4. For use encrypted messages, use the application layer.
+5. ESP-NOW supports two versions: v1.0 (RTOS_SDK and ESP-IDF v5.3 and below) and v2.0 (ESP-IDF v5.4 and highter). The maximum packet length supported by v2.0 devices is 1490 bytes, while the maximum packet length supported by v1.0 devices is 250 bytes. The v2.0 devices are capable of receiving packets from both v2.0 and v1.0 devices. In contrast, v1.0 devices can only receive packets from other v1.0 devices. However, v1.0 devices can receive v2.0 packets if the packet length is less than or equal to 250 bytes. For packets exceeding this length, the v1.0 devices will either truncate the data to the first 250 bytes or discard the packet entirely.
 
 ## Using
 
@@ -52,7 +55,7 @@ Sending and receiving messages:
 
 void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
-uint8_t target[6] = {0x34, 0x94, 0x54, 0x24, 0xA3, 0x41};
+uint8_t target[6] = {0xEC, 0x94, 0xCB, 0x87, 0xEC, 0xFC};
 
 typedef struct
 {

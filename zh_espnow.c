@@ -20,6 +20,11 @@ static TaskHandle_t _processing_task_handle = {0};
 static zh_espnow_init_config_t _init_config = {0};
 static bool _is_initialized = false;
 static uint8_t _attempts = 0;
+#if defined ESP_NOW_MAX_DATA_LEN_V2
+static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN_V2;
+#else
+static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN;
+#endif
 
 typedef struct
 {
@@ -30,9 +35,9 @@ typedef struct
     } id;
     struct
     {
-        uint8_t mac_addr[6];
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN];
         uint8_t *payload;
-        uint8_t payload_len;
+        uint16_t payload_len;
     } data;
 } _queue_t;
 
@@ -61,23 +66,24 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
     else if (err == ESP_FAIL)
     {
         uint8_t prim = 0;
-        wifi_second_chan_t sec = 0;
+        wifi_second_chan_t sec = WIFI_SECOND_CHAN_NONE;
         esp_wifi_get_channel(&prim, &sec);
         if (prim != _init_config.wifi_channel)
         {
             ESP_LOGW(TAG, "ESP-NOW initialization warning. The device is connected to the router. Channel %d will be used for ESP-NOW.", prim);
         }
     }
+    esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR);
     _event_group_handle = xEventGroupCreate();
     _queue_handle = xQueueCreate(_init_config.queue_size, sizeof(_queue_t));
     if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK || esp_now_register_recv_cb(_recv_cb) != ESP_OK)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error.");
+        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
         return ESP_FAIL;
     }
     if (xTaskCreatePinnedToCore(&_processing, "NULL", _init_config.stack_size, NULL, _init_config.task_priority, &_processing_task_handle, tskNO_AFFINITY) != pdPASS)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error.");
+        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
         return ESP_FAIL;
     }
     _is_initialized = true;
@@ -119,7 +125,7 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
         ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. ESP-NOW not initialized.");
         return ESP_FAIL;
     }
-    if (data == NULL || data_len == 0 || data_len > ESP_NOW_MAX_DATA_LEN)
+    if (data == NULL || data_len == 0 || data_len > _max_message_size)
     {
         ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. Invalid argument.");
         return ESP_ERR_INVALID_ARG;
@@ -129,31 +135,23 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
         ESP_LOGW(TAG, "Adding outgoing ESP-NOW data to queue fail. Queue is almost full.");
         return ESP_ERR_INVALID_STATE;
     }
-    uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    uint8_t broadcast[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     _queue_t queue = {0};
     queue.id = TO_SEND;
     if (target == NULL)
     {
-        memcpy(queue.data.mac_addr, broadcast, 6);
+        memcpy(queue.data.mac_addr, broadcast, ESP_NOW_ETH_ALEN);
     }
     else
     {
-        memcpy(queue.data.mac_addr, target, 6);
+        memcpy(queue.data.mac_addr, target, ESP_NOW_ETH_ALEN);
     }
-    if (data_len / sizeof(void *) == 0)
-    {
-        queue.data.payload = heap_caps_malloc(data_len, MALLOC_CAP_32BIT);
-    }
-    else
-    {
-        queue.data.payload = heap_caps_malloc(data_len, MALLOC_CAP_8BIT);
-    }
+    queue.data.payload = heap_caps_calloc(1, data_len, MALLOC_CAP_8BIT);
     if (queue.data.payload == NULL)
     {
         ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. Memory allocation fail or no free memory in the heap.");
         return ESP_ERR_NO_MEM;
     }
-    memset(queue.data.payload, 0, data_len);
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
     if (target == NULL)
@@ -172,7 +170,7 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
     return ESP_OK;
 }
 
-static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
+static void IRAM_ATTR _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
     if (status == ESP_NOW_SEND_SUCCESS)
     {
@@ -185,9 +183,9 @@ static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-static void _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
+static void IRAM_ATTR _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
 #else
-static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
+static void IRAM_ATTR _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
 #endif
 {
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
@@ -203,24 +201,16 @@ static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *dat
     _queue_t queue = {0};
     queue.id = ON_RECV;
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-    memcpy(queue.data.mac_addr, mac_addr, 6);
+    memcpy(queue.data.mac_addr, mac_addr, ESP_NOW_ETH_ALEN);
 #else
-    memcpy(queue.data.mac_addr, esp_now_info->src_addr, 6);
+    memcpy(queue.data.mac_addr, esp_now_info->src_addr, ESP_NOW_ETH_ALEN);
 #endif
-    if (data_len / sizeof(void *) == 0)
-    {
-        queue.data.payload = heap_caps_malloc(data_len, MALLOC_CAP_32BIT);
-    }
-    else
-    {
-        queue.data.payload = heap_caps_malloc(data_len, MALLOC_CAP_8BIT);
-    }
+    queue.data.payload = heap_caps_calloc(1, data_len, MALLOC_CAP_8BIT);
     if (queue.data.payload == NULL)
     {
         ESP_LOGE(TAG, "Adding incoming ESP-NOW data to queue fail. Memory allocation fail or no free memory in the heap.");
         return;
     }
-    memset(queue.data.payload, 0, data_len);
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
@@ -234,7 +224,7 @@ static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *dat
     }
 }
 
-static void _processing(void *pvParameter)
+static void IRAM_ATTR _processing(void *pvParameter)
 {
     _queue_t queue = {0};
     while (xQueueReceive(_queue_handle, &queue, portMAX_DELAY) == pdTRUE)
@@ -244,16 +234,15 @@ static void _processing(void *pvParameter)
         {
         case TO_SEND:
             ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processing begin.", MAC2STR(queue.data.mac_addr));
-            esp_now_peer_info_t *peer = heap_caps_malloc(sizeof(esp_now_peer_info_t), MALLOC_CAP_8BIT);
+            esp_now_peer_info_t *peer = heap_caps_calloc(1, sizeof(esp_now_peer_info_t), MALLOC_CAP_8BIT);
             if (peer == NULL)
             {
                 ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. Memory allocation fail or no free memory in the heap.");
                 heap_caps_free(queue.data.payload);
                 break;
             }
-            memset(peer, 0, sizeof(esp_now_peer_info_t));
             peer->ifidx = _init_config.wifi_interface;
-            memcpy(peer->peer_addr, queue.data.mac_addr, 6);
+            memcpy(peer->peer_addr, queue.data.mac_addr, ESP_NOW_ETH_ALEN);
             err = esp_now_add_peer(peer);
             if (err == ESP_ERR_ESPNOW_NO_MEM)
             {
@@ -269,7 +258,7 @@ static void _processing(void *pvParameter)
                 heap_caps_free(peer);
                 break;
             }
-            zh_espnow_event_on_send_t *on_send = heap_caps_malloc(sizeof(zh_espnow_event_on_send_t), MALLOC_CAP_8BIT);
+            zh_espnow_event_on_send_t *on_send = heap_caps_calloc(1, sizeof(zh_espnow_event_on_send_t), MALLOC_CAP_8BIT);
             if (on_send == NULL)
             {
                 ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. Memory allocation fail or no free memory in the heap.");
@@ -277,8 +266,7 @@ static void _processing(void *pvParameter)
                 heap_caps_free(peer);
                 break;
             }
-            memset(on_send, 0, sizeof(zh_espnow_event_on_send_t));
-            memcpy(on_send->mac_addr, queue.data.mac_addr, 6);
+            memcpy(on_send->mac_addr, queue.data.mac_addr, ESP_NOW_ETH_ALEN);
         SEND:
             ++_attempts;
             err = esp_now_send(queue.data.mac_addr, queue.data.payload, queue.data.payload_len);
@@ -293,7 +281,7 @@ static void _processing(void *pvParameter)
             }
             else if (err != ESP_OK)
             {
-                ESP_LOGE(TAG, "Sending ESP-NOW data fail. Internal error.");
+                ESP_LOGE(TAG, "Sending ESP-NOW data fail. Internal error at line %d.", __LINE__);
                 heap_caps_free(queue.data.payload);
                 heap_caps_free(peer);
                 heap_caps_free(on_send);
@@ -307,7 +295,7 @@ static void _processing(void *pvParameter)
             EventBits_t bit = xEventGroupWaitBits(_event_group_handle, DATA_SEND_SUCCESS | DATA_SEND_FAIL, pdTRUE, pdFALSE, 50 / portTICK_PERIOD_MS);
             if ((bit & DATA_SEND_SUCCESS) != 0)
             {
-                ESP_LOGI(TAG, "Confirmation message received. ESP-NOW message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent success.", MAC2STR(queue.data.mac_addr));
+                ESP_LOGI(TAG, "Confirmation message received. ESP-NOW message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent success after %d attempts.", MAC2STR(queue.data.mac_addr), _attempts);
                 on_send->status = ZH_ESPNOW_SEND_SUCCESS;
                 _attempts = 0;
             }
@@ -335,7 +323,7 @@ static void _processing(void *pvParameter)
             ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processing begin.", MAC2STR(queue.data.mac_addr));
             zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue.data;
             ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
-            if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + 7, portTICK_PERIOD_MS) != ESP_OK)
+            if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS) != ESP_OK)
             {
                 ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
             }
