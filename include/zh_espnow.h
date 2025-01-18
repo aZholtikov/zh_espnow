@@ -104,6 +104,14 @@ extern "C"
      */
     esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len);
 
+    /**
+     * @brief Get ESP-NOW version.
+     * 
+     * @return
+     *              - ESP-NOW version
+     */
+    uint8_t zh_espnow_get_version(void);
+
 #ifdef __cplusplus
 }
 #endif

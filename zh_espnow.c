@@ -81,7 +81,7 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
         ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
         return ESP_FAIL;
     }
-    if (xTaskCreatePinnedToCore(&_processing, "NULL", _init_config.stack_size, NULL, _init_config.task_priority, &_processing_task_handle, tskNO_AFFINITY) != pdPASS)
+    if (xTaskCreatePinnedToCore(&_processing, "zh_espnow_processing", _init_config.stack_size, NULL, _init_config.task_priority, &_processing_task_handle, tskNO_AFFINITY) != pdPASS)
     {
         ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
         return ESP_FAIL;
@@ -154,6 +154,11 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
     }
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
+    if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+        return ESP_FAIL;
+    }
     if (target == NULL)
     {
         ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC FF:FF:FF:FF:FF:FF to queue success.");
@@ -161,11 +166,6 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8
     else
     {
         ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(target));
-    }
-    if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
-        return ESP_FAIL;
     }
     return ESP_OK;
 }
@@ -213,15 +213,16 @@ static void IRAM_ATTR _recv_cb(const esp_now_recv_info_t *esp_now_info, const ui
     }
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
+    if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+        return;
+    }
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(mac_addr));
 #else
     ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(esp_now_info->src_addr));
 #endif
-    if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
-    }
 }
 
 static void IRAM_ATTR _processing(void *pvParameter)
@@ -309,10 +310,13 @@ static void IRAM_ATTR _processing(void *pvParameter)
                 on_send->status = ZH_ESPNOW_SEND_FAIL;
                 _attempts = 0;
             }
-            ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS) != ESP_OK)
             {
                 ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             }
             heap_caps_free(queue.data.payload);
             esp_now_del_peer(peer->peer_addr);
@@ -322,10 +326,13 @@ static void IRAM_ATTR _processing(void *pvParameter)
         case ON_RECV:
             ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processing begin.", MAC2STR(queue.data.mac_addr));
             zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue.data;
-            ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS) != ESP_OK)
             {
                 ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
             }
             break;
         default:
@@ -333,4 +340,11 @@ static void IRAM_ATTR _processing(void *pvParameter)
         }
     }
     vTaskDelete(NULL);
+}
+
+uint8_t zh_espnow_get_version(void)
+{
+    uint32_t version = 0;
+    esp_now_get_version(&version);
+    return version;
 }

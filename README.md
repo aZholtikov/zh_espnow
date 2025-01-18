@@ -86,6 +86,7 @@ void app_main(void)
     strcpy(send_message.char_value, "THIS IS A CHAR");
     send_message.float_value = 1.234;
     send_message.bool_value = false;
+    printf("Used ESP-NOW version %d.\n", zh_espnow_get_version());
     for (;;)
     {
         send_message.int_value = esp_random();
