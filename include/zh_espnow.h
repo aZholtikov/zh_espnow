@@ -16,7 +16,8 @@
         .queue_size = 64,               \
         .wifi_interface = WIFI_IF_STA,  \
         .wifi_channel = 1,              \
-        .attempts = 3}
+        .attempts = 3,                  \
+        .battery_mode = false}
 
 #ifdef __cplusplus
 extern "C"
@@ -31,6 +32,7 @@ extern "C"
         wifi_interface_t wifi_interface; // WiFi interface (STA or AP) used for ESP-NOW operation. @note The MAC address of the device depends on the selected WiFi interface.
         uint8_t wifi_channel;            // Wi-Fi channel uses to send/receive ESP-NOW data. @note Values from 1 to 14.
         uint8_t attempts;                // Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 5.
+        bool battery_mode;               // Battery operation mode. If true, the node does not receive messages.
     } zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
@@ -106,7 +108,7 @@ extern "C"
 
     /**
      * @brief Get ESP-NOW version.
-     * 
+     *
      * @return
      *              - ESP-NOW version
      */

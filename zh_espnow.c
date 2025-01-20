@@ -76,10 +76,21 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
     esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR);
     _event_group_handle = xEventGroupCreate();
     _queue_handle = xQueueCreate(_init_config.queue_size, sizeof(_queue_t));
-    if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK || esp_now_register_recv_cb(_recv_cb) != ESP_OK)
+    if (_init_config.battery_mode == false)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
-        return ESP_FAIL;
+        if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK || esp_now_register_recv_cb(_recv_cb) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
+            return ESP_FAIL;
+        }
+    }
+    else
+    {
+        if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
+            return ESP_FAIL;
+        }
     }
     if (xTaskCreatePinnedToCore(&_processing, "zh_espnow_processing", _init_config.stack_size, NULL, _init_config.task_priority, &_processing_task_handle, tskNO_AFFINITY) != pdPASS)
     {
@@ -102,7 +113,10 @@ esp_err_t zh_espnow_deinit(void)
     vEventGroupDelete(_event_group_handle);
     vQueueDelete(_queue_handle);
     esp_now_unregister_send_cb();
-    esp_now_unregister_recv_cb();
+    if (_init_config.battery_mode == false)
+    {
+        esp_now_unregister_recv_cb();
+    }
     esp_now_deinit();
     vTaskDelete(_processing_task_handle);
     _is_initialized = false;
