@@ -73,7 +73,11 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
             ESP_LOGW(TAG, "ESP-NOW initialization warning. The device is connected to the router. Channel %d will be used for ESP-NOW.", prim);
         }
     }
+#if defined CONFIG_IDF_TARGET_ESP8266 || CONFIG_IDF_TARGET_ESP32C2
+    esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B);
+#else
     esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR);
+#endif
     _event_group_handle = xEventGroupCreate();
     _queue_handle = xQueueCreate(_init_config.queue_size, sizeof(_queue_t));
     if (_init_config.battery_mode == false)
