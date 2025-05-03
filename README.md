@@ -2,8 +2,8 @@
 
 ## Tested on
 
-1. ESP8266 RTOS_SDK v3.4
-2. ESP32 ESP-IDF v5.4
+1. [ESP8266 RTOS_SDK v3.4](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/index.html#)
+2. [ESP32 ESP-IDF v5.4](https://docs.espressif.com/projects/esp-idf/en/release-v5.4/esp32/index.html)
 
 ## Features
 
@@ -126,5 +126,3 @@ void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t eve
     }
 }
 ```
-
-Any [feedback](mailto:github@azholtikov.ru) will be gladly accepted.
