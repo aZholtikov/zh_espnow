@@ -26,12 +26,12 @@ extern "C"
 
     typedef struct // Structure for initial initialization of ESP-NOW interface.
     {
-        uint8_t task_priority;           // Task priority for the ESP-NOW messages processing. @note It is not recommended to set a value less than 5.
-        uint16_t stack_size;             // Stack size for task for the ESP-NOW messages processing. @note The minimum size is 2048 bytes.
-        uint8_t queue_size;              // Queue size for task for the ESP-NOW messages processing. @note The size depends on the number of messages to be processed. It is not recommended to set the value less than 16.
+        uint8_t task_priority;           // Task priority for the ESP-NOW messages processing. @note The minimum size is 5.
+        uint16_t stack_size;             // Stack size for task for the ESP-NOW messages processing. @note The minimum size is 2048.
+        uint8_t queue_size;              // Queue size for task for the ESP-NOW messages processing. @note The size depends on the number of messages to be processed. The minimum size is 16.
         wifi_interface_t wifi_interface; // WiFi interface (STA or AP) used for ESP-NOW operation. @note The MAC address of the device depends on the selected WiFi interface.
         uint8_t wifi_channel;            // Wi-Fi channel uses to send/receive ESP-NOW data. @note Values from 1 to 14.
-        uint8_t attempts;                // Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 5.
+        uint8_t attempts;                // Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10.
         bool battery_mode;               // Battery operation mode. If true, the node does not receive messages.
     } zh_espnow_init_config_t;
 
@@ -71,20 +71,14 @@ extern "C"
      *
      * @param[in] config Pointer to ESP-NOW initialized configuration structure. Can point to a temporary variable.
      *
-     * @return
-     *              - ESP_OK if initialization was success
-     *              - ESP_ERR_INVALID_ARG if parameter error
-     *              - ESP_ERR_WIFI_NOT_INIT if WiFi is not initialized
-     *              - ESP_FAIL if any internal error
+     * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config);
 
     /**
      * @brief Deinitialize ESP-NOW interface.
      *
-     * @return
-     *              - ESP_OK if deinitialization was success
-     *              - ESP_FAIL if ESP-NOW is not initialized
+     * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_deinit(void);
 
@@ -95,22 +89,16 @@ extern "C"
      * @param[in] data Pointer to a buffer containing the data for send.
      * @param[in] data_len Sending data length.
      *
-     * @note The function will return an ESP_ERR_INVALID_STATE error if less than 10% of the size set at initialization remains in the message queue.
+     * @note The function will return an error if less than 10% of the size set at initialization remains in the message queue.
      *
-     * @return
-     *              - ESP_OK if sent was success
-     *              - ESP_ERR_INVALID_ARG if parameter error
-     *              - ESP_ERR_NO_MEM if memory allocation fail or no free memory in the heap
-     *              - ESP_ERR_INVALID_STATE if queue for outgoing data is almost full
-     *              - ESP_FAIL if ESP-NOW is not initialized or any internal error
+     * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len);
 
     /**
      * @brief Get ESP-NOW version.
      *
-     * @return
-     *              - ESP-NOW version
+     * @return ESP-NOW version if success or 0 otherwise.
      */
     uint8_t zh_espnow_get_version(void);
 

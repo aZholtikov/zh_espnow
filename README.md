@@ -19,8 +19,8 @@
 1. For correct operation ESP-NOW interface must be the same as the WiFi interface (except in the case of APSTA mode - the ESP-NOW interface can be anything).
 2. For correct operation in ESP-NOW + STA mode, your WiFi router must be set to the same channel as ESP-NOW.
 3. All devices on the network must have the same WiFi channel.
-4. For use encrypted messages, use the application layer.
-5. ESP-NOW supports two versions: v1.0 (RTOS_SDK and ESP-IDF v5.3 and below) and v2.0 (ESP-IDF v5.4 and highter). The maximum packet length supported by v2.0 devices is 1490 bytes, while the maximum packet length supported by v1.0 devices is 250 bytes. The v2.0 devices are capable of receiving packets from both v2.0 and v1.0 devices. In contrast, v1.0 devices can only receive packets from other v1.0 devices. However, v1.0 devices can receive v2.0 packets if the packet length is less than or equal to 250 bytes. For packets exceeding this length, the v1.0 devices will either truncate the data to the first 250 bytes or discard the packet entirely.
+4. For use encrypted messages use the application layer.
+5. ESP-NOW supports two versions: v1.0 (RTOS_SDK and ESP-IDF v5.3 and below) and v2.0 (ESP-IDF v5.4 and highter). The maximum packet length supported by v2.0 devices is 1490 bytes while the maximum packet length supported by v1.0 devices is 250 bytes. The v2.0 devices are capable of receiving packets from both v2.0 and v1.0 devices. In contrast v1.0 devices can only receive packets from other v1.0 devices. However v1.0 devices can receive v2.0 packets if the packet length is less than or equal to 250 bytes. For packets exceeding this length the v1.0 devices will either truncate the data to the first 250 bytes or discard the packet entirely.
 
 ## Using
 
@@ -28,7 +28,7 @@ In an existing project, run the following command to install the component:
 
 ```text
 cd ../your_project/components
-git clone http://http://git.zh.com.ru/alexey.zholtikov/zh_espnow
+git clone http://git.zh.com.ru/alexey.zholtikov/zh_espnow
 ```
 
 In the application, add the component:

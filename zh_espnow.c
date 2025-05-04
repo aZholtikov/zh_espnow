@@ -1,30 +1,23 @@
 #include "zh_espnow.h"
 
-#define DATA_SEND_SUCCESS BIT0
-#define DATA_SEND_FAIL BIT1
-#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
-
-static void _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
-#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-static void _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
-#else
-static void _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
-#endif
-static void _processing(void *pvParameter);
-
 static const char *TAG = "zh_espnow";
 
-static EventGroupHandle_t _event_group_handle = {0};
-static QueueHandle_t _queue_handle = {0};
-static TaskHandle_t _processing_task_handle = {0};
-static zh_espnow_init_config_t _init_config = {0};
-static bool _is_initialized = false;
-static uint8_t _attempts = 0;
-#if defined ESP_NOW_MAX_DATA_LEN_V2
-static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN_V2;
-#else
-static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN;
-#endif
+#define ZH_ESPNOW_LOGI(msg, ...) ESP_LOGI(TAG, msg, ##__VA_ARGS__)
+#define ZH_ESPNOW_LOGW(msg, ...) ESP_LOGW(TAG, msg, ##__VA_ARGS__)
+#define ZH_ESPNOW_LOGE(msg, ...) ESP_LOGE(TAG, msg, ##__VA_ARGS__)
+#define ZH_ESPNOW_LOGE_ERR(msg, err, ...) ESP_LOGE(TAG, "[%s:%d:%s] " msg, __FILE__, __LINE__, esp_err_to_name(err), ##__VA_ARGS__)
+
+#define ZH_ESPNOW_CHECK(cond, err, msg, ...) \
+    if (!(cond))                             \
+    {                                        \
+        ZH_ESPNOW_LOGE_ERR(msg, err);        \
+        return err;                          \
+    }
+
+#define DATA_SEND_SUCCESS BIT0
+#define DATA_SEND_FAIL BIT1
+#define WAIT_CONFIRM_MAX_TIME 50
+#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 
 typedef struct
 {
@@ -43,177 +36,315 @@ typedef struct
 
 ESP_EVENT_DEFINE_BASE(ZH_ESPNOW);
 
+static esp_err_t _zh_espnow_init_wifi(const zh_espnow_init_config_t *config);
+static esp_err_t _zh_espnow_init_resources(const zh_espnow_init_config_t *config);
+static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *config);
+static esp_err_t _zh_espnow_register_callbacks(bool battery_mode);
+static esp_err_t _zh_espnow_create_task(const zh_espnow_init_config_t *config);
+static void _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
+#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
+static void _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
+#else
+static void _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
+#endif
+static void _zh_espnow_process_send(_queue_t *queue);
+static void _zh_espnow_process_recv(_queue_t *queue);
+static void _zh_espnow_processing(void *pvParameter);
+
+static EventGroupHandle_t _event_group_handle = {0};
+static QueueHandle_t _queue_handle = {0};
+static TaskHandle_t _processing_task_handle = {0};
+static zh_espnow_init_config_t _init_config = {0};
+static bool _is_initialized = false;
+static const uint8_t _broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+#if defined ESP_NOW_MAX_DATA_LEN_V2
+static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN_V2;
+#else
+static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN;
+#endif
+
 esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
 {
-    ESP_LOGI(TAG, "ESP-NOW initialization begin.");
-    if (config == NULL)
+    ZH_ESPNOW_LOGI("ESP-NOW initialization started.");
+    if (_is_initialized == true)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. Invalid argument.");
-        return ESP_ERR_INVALID_ARG;
+        ZH_ESPNOW_LOGW("ESP-NOW initialization failed. ESP-NOW is already initialized.");
+        return ESP_OK;
     }
-    _init_config = *config;
-    if (_init_config.wifi_channel < 1 || _init_config.wifi_channel > 14)
+    esp_err_t err = _zh_espnow_validate_config(config);
+    if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi channel incorrect.");
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t err = esp_wifi_set_channel(_init_config.wifi_channel, WIFI_SECOND_CHAN_NONE);
-    if (err == ESP_ERR_WIFI_NOT_INIT || err == ESP_ERR_WIFI_NOT_STARTED)
-    {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. WiFi not initialized.");
-        return ESP_ERR_WIFI_NOT_INIT;
-    }
-    else if (err == ESP_FAIL)
-    {
-        uint8_t prim = 0;
-        wifi_second_chan_t sec = WIFI_SECOND_CHAN_NONE;
-        esp_wifi_get_channel(&prim, &sec);
-        if (prim != _init_config.wifi_channel)
-        {
-            ESP_LOGW(TAG, "ESP-NOW initialization warning. The device is connected to the router. Channel %d will be used for ESP-NOW.", prim);
-        }
-    }
-#if defined CONFIG_IDF_TARGET_ESP8266 || CONFIG_IDF_TARGET_ESP32C2
-    esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B);
-#else
-    esp_wifi_set_protocol(_init_config.wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR);
-#endif
-    _event_group_handle = xEventGroupCreate();
-    _queue_handle = xQueueCreate(_init_config.queue_size, sizeof(_queue_t));
-    if (_init_config.battery_mode == false)
-    {
-        if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK || esp_now_register_recv_cb(_recv_cb) != ESP_OK)
-        {
-            ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
-            return ESP_FAIL;
-        }
+        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Initial configuration check failed.");
+        return err;
     }
     else
     {
-        if (esp_now_init() != ESP_OK || esp_now_register_send_cb(_send_cb) != ESP_OK)
-        {
-            ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
-            return ESP_FAIL;
-        }
+        ZH_ESPNOW_LOGI("ESP-NOW initial configuration check completed successfully.");
     }
-    if (xTaskCreatePinnedToCore(&_processing, "zh_espnow_processing", _init_config.stack_size, NULL, _init_config.task_priority, &_processing_task_handle, tskNO_AFFINITY) != pdPASS)
+    _init_config = *config;
+    err = _zh_espnow_init_wifi(config);
+    if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "ESP-NOW initialization fail. Internal error at line %d.", __LINE__);
-        return ESP_FAIL;
+        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. WiFi initialization failed.");
+        return err;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("WiFi initialization completed successfully.");
+    }
+    err = _zh_espnow_init_resources(config);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Resources initialization failed.");
+        goto CLEANUP;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("ESP-NOW resources initialization completed successfully.");
+    }
+    err = esp_now_init();
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("ESP-NOW initialization failed. ESP-NOW driver initialization failed.", err);
+        goto CLEANUP;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("ESP-NOW driver initialization completed successfully.");
+    }
+    err = _zh_espnow_register_callbacks(config->battery_mode);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. ESP-NOW callbacks registration failed.");
+        goto CLEANUP;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("ESP-NOW callbacks registered successfully.");
+    }
+    err = _zh_espnow_create_task(config);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Processing task initialization failed.");
+        goto CLEANUP;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("ESP-NOW processing task initialization completed successfully.");
     }
     _is_initialized = true;
-    ESP_LOGI(TAG, "ESP-NOW initialization success.");
+    ZH_ESPNOW_LOGI("ESP-NOW initialization completed successfully.");
     return ESP_OK;
+CLEANUP:
+    zh_espnow_deinit();
+    return err;
 }
 
 esp_err_t zh_espnow_deinit(void)
 {
-    ESP_LOGI(TAG, "ESP-NOW deinitialization begin.");
+    ZH_ESPNOW_LOGI("ESP-NOW deinitialization started.");
     if (_is_initialized == false)
     {
-        ESP_LOGE(TAG, "ESP-NOW deinitialization fail. ESP-NOW not initialized.");
+        ZH_ESPNOW_LOGW("ESP-NOW deinitialization skipped. ESP-NOW is not initialized.");
         return ESP_FAIL;
     }
-    vEventGroupDelete(_event_group_handle);
-    vQueueDelete(_queue_handle);
-    esp_now_unregister_send_cb();
+    esp_err_t final_status = ESP_OK;
+    if (_event_group_handle != NULL)
+    {
+        vEventGroupDelete(_event_group_handle);
+        _event_group_handle = NULL;
+        ZH_ESPNOW_LOGI("Event group deleted.");
+    }
+    if (_queue_handle != NULL)
+    {
+        _queue_t queue = {0};
+        while (xQueueReceive(_queue_handle, &queue, 0) == pdTRUE)
+        {
+            if (queue.data.payload != NULL)
+            {
+                heap_caps_free(queue.data.payload);
+                ZH_ESPNOW_LOGI("Freed payload memory from queue.");
+            }
+        }
+        vQueueDelete(_queue_handle);
+        _queue_handle = NULL;
+        ZH_ESPNOW_LOGI("Queue deleted.");
+    }
+    esp_err_t err = esp_now_unregister_send_cb();
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("Failed to unregister send callback.", err);
+        final_status = err;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("Send callback unregistered.");
+    }
     if (_init_config.battery_mode == false)
     {
-        esp_now_unregister_recv_cb();
+        err = esp_now_unregister_recv_cb();
+        if (err != ESP_OK)
+        {
+            ZH_ESPNOW_LOGE_ERR("Failed to unregister receive callback.", err);
+            final_status = err;
+        }
+        else
+        {
+            ZH_ESPNOW_LOGI("Receive callback unregistered.");
+        }
     }
-    esp_now_deinit();
-    vTaskDelete(_processing_task_handle);
+    err = esp_now_deinit();
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("ESP-NOW driver deinitialization failed.", err);
+        final_status = err;
+    }
+    else
+    {
+        ZH_ESPNOW_LOGI("ESP-NOW driver deinitialized.");
+    }
+    if (_processing_task_handle != NULL)
+    {
+        vTaskDelete(_processing_task_handle);
+        _processing_task_handle = NULL;
+        ZH_ESPNOW_LOGI("Processing task deleted.");
+    }
     _is_initialized = false;
-    ESP_LOGI(TAG, "ESP-NOW deinitialization success.");
-    return ESP_OK;
+    ZH_ESPNOW_LOGI("ESP-NOW deinitialization completed successfully.");
+    return final_status;
 }
 
 esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len)
 {
-    if (target == NULL)
-    {
-        ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC FF:FF:FF:FF:FF:FF to queue begin.");
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X to queue begin.", MAC2STR(target));
-    }
+    ZH_ESPNOW_LOGI("Adding to queue outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR((target == NULL) ? _broadcast_mac : target));
     if (_is_initialized == false)
     {
-        ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. ESP-NOW not initialized.");
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue failed. ESP-NOW is not initialized.", MAC2STR((target == NULL) ? _broadcast_mac : target));
         return ESP_FAIL;
     }
     if (data == NULL || data_len == 0 || data_len > _max_message_size)
     {
-        ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. Invalid argument.");
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue failed. Invalid arguments.", MAC2STR((target == NULL) ? _broadcast_mac : target));
         return ESP_ERR_INVALID_ARG;
     }
     if (uxQueueSpacesAvailable(_queue_handle) < _init_config.queue_size / 10)
     {
-        ESP_LOGW(TAG, "Adding outgoing ESP-NOW data to queue fail. Queue is almost full.");
+        ZH_ESPNOW_LOGW("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue failed. Queue is almost full.", MAC2STR((target == NULL) ? _broadcast_mac : target));
         return ESP_ERR_INVALID_STATE;
     }
-    uint8_t broadcast[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     _queue_t queue = {0};
     queue.id = TO_SEND;
-    if (target == NULL)
-    {
-        memcpy(queue.data.mac_addr, broadcast, ESP_NOW_ETH_ALEN);
-    }
-    else
-    {
-        memcpy(queue.data.mac_addr, target, ESP_NOW_ETH_ALEN);
-    }
+    memcpy(queue.data.mac_addr, (target == NULL) ? _broadcast_mac : target, ESP_NOW_ETH_ALEN);
     queue.data.payload = heap_caps_calloc(1, data_len, MALLOC_CAP_8BIT);
     if (queue.data.payload == NULL)
     {
-        ESP_LOGE(TAG, "Adding outgoing ESP-NOW data to queue fail. Memory allocation fail or no free memory in the heap.");
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue failed. Memory allocation failed.", MAC2STR((target == NULL) ? _broadcast_mac : target));
         return ESP_ERR_NO_MEM;
     }
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
     if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
     {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue failed. Failed to add data to queue.", MAC2STR((target == NULL) ? _broadcast_mac : target));
+        heap_caps_free(queue.data.payload);
         return ESP_FAIL;
     }
-    if (target == NULL)
+    ZH_ESPNOW_LOGI("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue successfully.", MAC2STR((target == NULL) ? _broadcast_mac : target));
+    return ESP_OK;
+}
+
+static esp_err_t _zh_espnow_init_wifi(const zh_espnow_init_config_t *config)
+{
+    esp_err_t err = esp_wifi_set_channel(config->wifi_channel, WIFI_SECOND_CHAN_NONE);
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "WiFi channel setup failed.");
+#if defined CONFIG_IDF_TARGET_ESP8266 || CONFIG_IDF_TARGET_ESP32C2
+    err = esp_wifi_set_protocol(config->wifi_interface, WIFI_PROTOCOL_11B);
+#else
+    err = esp_wifi_set_protocol(config->wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR);
+#endif
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "WiFi protocol setup failed.");
+    return ESP_OK;
+}
+
+static esp_err_t _zh_espnow_init_resources(const zh_espnow_init_config_t *config)
+{
+    _event_group_handle = xEventGroupCreate();
+    ZH_ESPNOW_CHECK(_event_group_handle != NULL, ESP_FAIL, "Event group creation failed.");
+    _queue_handle = xQueueCreate(config->queue_size, sizeof(_queue_t));
+    ZH_ESPNOW_CHECK(_queue_handle != 0, ESP_FAIL, "Queue creation failed.");
+    return ESP_OK;
+}
+
+static esp_err_t _zh_espnow_create_task(const zh_espnow_init_config_t *config)
+{
+    BaseType_t err = xTaskCreatePinnedToCore(
+        &_zh_espnow_processing,
+        "zh_espnow_processing",
+        config->stack_size,
+        NULL,
+        config->task_priority,
+        &_processing_task_handle,
+        tskNO_AFFINITY);
+    ZH_ESPNOW_CHECK(err == pdPASS, ESP_FAIL, "Task creation failed.");
+    return ESP_OK;
+}
+
+static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *config)
+{
+    ZH_ESPNOW_CHECK(config != NULL, ESP_ERR_INVALID_ARG, "Invalid configuration.");
+    ZH_ESPNOW_CHECK(config->wifi_channel > 0 && config->wifi_channel < 15, ESP_ERR_INVALID_ARG, "Invalid WiFi channel.");
+    ZH_ESPNOW_CHECK(config->task_priority >= 5 && config->stack_size >= 2048, ESP_ERR_INVALID_ARG, "Invalid task settings.");
+    ZH_ESPNOW_CHECK(config->queue_size >= 16, ESP_ERR_INVALID_ARG, "Invalid queue size.");
+    ZH_ESPNOW_CHECK(config->attempts > 0, ESP_ERR_INVALID_ARG, "Invalid number of attempts.");
+    return ESP_OK;
+}
+
+static esp_err_t _zh_espnow_register_callbacks(bool battery_mode)
+{
+    esp_err_t err = esp_now_register_send_cb(_zh_espnow_send_cb);
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "Send callback registration failed.");
+    if (battery_mode == false)
     {
-        ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC FF:FF:FF:FF:FF:FF to queue success.");
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Adding outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(target));
+        err = esp_now_register_recv_cb(_zh_espnow_recv_cb);
+        ZH_ESPNOW_CHECK(err == ESP_OK, err, "Receive callback registration failed.");
     }
     return ESP_OK;
 }
 
-static void IRAM_ATTR _send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
+static void IRAM_ATTR _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
-    if (status == ESP_NOW_SEND_SUCCESS)
+    if (mac_addr == NULL)
     {
-        xEventGroupSetBits(_event_group_handle, DATA_SEND_SUCCESS);
+        ZH_ESPNOW_LOGE("Send callback received NULL MAC address.");
+        return;
     }
-    else
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    ZH_ESPNOW_LOGI("ESP-NOW send callback: %s for MAC %02X:%02X:%02X:%02X:%02X:%02X.", (status == ESP_NOW_SEND_SUCCESS) ? "SUCCESS" : "FAIL", MAC2STR(mac_addr));
+    xEventGroupSetBitsFromISR(_event_group_handle, (status == ESP_NOW_SEND_SUCCESS) ? DATA_SEND_SUCCESS : DATA_SEND_FAIL, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken == pdTRUE)
     {
-        xEventGroupSetBits(_event_group_handle, DATA_SEND_FAIL);
-    }
+        portYIELD_FROM_ISR();
+    };
 }
 
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-static void IRAM_ATTR _recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
+static void IRAM_ATTR _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
 #else
-static void IRAM_ATTR _recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
+static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
 #endif
 {
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-    ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue begin.", MAC2STR(mac_addr));
+    if (mac_addr == NULL || data == NULL || data_len <= 0)
 #else
-    ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue begin.", MAC2STR(esp_now_info->src_addr));
+    if (esp_now_info == NULL || data == NULL || data_len <= 0)
 #endif
+    {
+        ZH_ESPNOW_LOGE("Receive callback received invalid arguments.");
+        return;
+    }
     if (uxQueueSpacesAvailable(_queue_handle) < _init_config.queue_size / 10)
     {
-        ESP_LOGW(TAG, "Adding incoming ESP-NOW data to queue fail. Queue is almost full.");
+        ZH_ESPNOW_LOGE("Queue is almost full. Dropping incoming ESP-NOW data.");
         return;
     }
     _queue_t queue = {0};
@@ -226,134 +357,130 @@ static void IRAM_ATTR _recv_cb(const esp_now_recv_info_t *esp_now_info, const ui
     queue.data.payload = heap_caps_calloc(1, data_len, MALLOC_CAP_8BIT);
     if (queue.data.payload == NULL)
     {
-        ESP_LOGE(TAG, "Adding incoming ESP-NOW data to queue fail. Memory allocation fail or no free memory in the heap.");
+        ZH_ESPNOW_LOGE("Memory allocation failed for incoming ESP-NOW data.");
         return;
     }
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
-    if (xQueueSend(_queue_handle, &queue, portTICK_PERIOD_MS) != pdTRUE)
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (xQueueSendFromISR(_queue_handle, &queue, &xHigherPriorityTaskWoken) != pdTRUE)
     {
-        ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
+        ZH_ESPNOW_LOGE("Failed to add incoming ESP-NOW data to queue.");
+        heap_caps_free(queue.data.payload);
         return;
     }
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-    ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(mac_addr));
+    ZH_ESPNOW_LOGI("Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue successfully.", MAC2STR(mac_addr));
 #else
-    ESP_LOGI(TAG, "Adding incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X to queue success.", MAC2STR(esp_now_info->src_addr));
+    ZH_ESPNOW_LOGI("Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X added to queue successfully.", MAC2STR(esp_now_info->src_addr));
+    if (xHigherPriorityTaskWoken == pdTRUE)
+    {
+        portYIELD_FROM_ISR();
+    };
 #endif
 }
 
-static void IRAM_ATTR _processing(void *pvParameter)
+static void _zh_espnow_process_send(_queue_t *queue)
+{
+    ZH_ESPNOW_LOGI("Processing outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR(queue->data.mac_addr));
+    esp_now_peer_info_t *peer = heap_caps_calloc(1, sizeof(esp_now_peer_info_t), MALLOC_CAP_8BIT);
+    if (peer == NULL)
+    {
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. Failed to allocate memory.", MAC2STR(queue->data.mac_addr));
+        heap_caps_free(queue->data.payload);
+        return;
+    }
+    peer->ifidx = _init_config.wifi_interface;
+    memcpy(peer->peer_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
+    esp_err_t err = esp_now_add_peer(peer);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. Failed to add peer.", err, MAC2STR(queue->data.mac_addr));
+        heap_caps_free(queue->data.payload);
+        heap_caps_free(peer);
+        return;
+    }
+    zh_espnow_event_on_send_t *on_send = heap_caps_calloc(1, sizeof(zh_espnow_event_on_send_t), MALLOC_CAP_8BIT);
+    if (on_send == NULL)
+    {
+        ZH_ESPNOW_LOGE("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. Failed to allocate memory.", MAC2STR(queue->data.mac_addr));
+        heap_caps_free(queue->data.payload);
+        esp_now_del_peer(peer->peer_addr);
+        heap_caps_free(peer);
+        return;
+    }
+    memcpy(on_send->mac_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
+    for (uint8_t attempt = 0; attempt < _init_config.attempts; ++attempt)
+    {
+        err = esp_now_send(queue->data.mac_addr, queue->data.payload, queue->data.payload_len);
+        if (err != ESP_OK)
+        {
+            ZH_ESPNOW_LOGE_ERR("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. ESP-NOW driver error.", err, MAC2STR(queue->data.mac_addr));
+            continue;
+        }
+        EventBits_t bits = xEventGroupWaitBits(_event_group_handle, DATA_SEND_SUCCESS | DATA_SEND_FAIL, pdTRUE, pdFALSE, WAIT_CONFIRM_MAX_TIME / portTICK_PERIOD_MS);
+        if (bits & DATA_SEND_SUCCESS)
+        {
+            ESP_LOGI(TAG, "ESP-NOW data sent successfully to MAC %02X:%02X:%02X:%02X:%02X:%02X after %d attempts.", MAC2STR(queue->data.mac_addr), attempt + 1);
+            on_send->status = ZH_ESPNOW_SEND_SUCCESS;
+            break;
+        }
+        else
+        {
+            ESP_LOGW(TAG, "ESP-NOW data send failed to MAC %02X:%02X:%02X:%02X:%02X:%02X on attempt %d.", MAC2STR(queue->data.mac_addr), attempt + 1);
+            on_send->status = ZH_ESPNOW_SEND_FAIL;
+        }
+    }
+    if (on_send->status != ZH_ESPNOW_SEND_SUCCESS)
+    {
+        ESP_LOGE(TAG, "Failed to send ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X after %d attempts.", MAC2STR(queue->data.mac_addr), _init_config.attempts);
+        on_send->status = ZH_ESPNOW_SEND_FAIL;
+    }
+    err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS);
+    if (err == ESP_OK)
+    {
+        ZH_ESPNOW_LOGI("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed successfully.", MAC2STR(queue->data.mac_addr));
+    }
+    else
+    {
+        ZH_ESPNOW_LOGE_ERR("Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. Failed to post send event.", err, MAC2STR(queue->data.mac_addr));
+    }
+    heap_caps_free(queue->data.payload);
+    esp_now_del_peer(peer->peer_addr);
+    heap_caps_free(peer);
+    heap_caps_free(on_send);
+}
+
+static void _zh_espnow_process_recv(_queue_t *queue)
+{
+    ZH_ESPNOW_LOGI("Processing incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR(queue->data.mac_addr));
+    zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue->data;
+    esp_err_t err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS);
+    if (err == ESP_OK)
+    {
+        ZH_ESPNOW_LOGI("Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed successfully.", MAC2STR(queue->data.mac_addr));
+    }
+    else
+    {
+        ZH_ESPNOW_LOGE_ERR("Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed failed. Failed to post receive event.", err, MAC2STR(queue->data.mac_addr));
+    }
+}
+
+static void IRAM_ATTR _zh_espnow_processing(void *pvParameter)
 {
     _queue_t queue = {0};
     while (xQueueReceive(_queue_handle, &queue, portMAX_DELAY) == pdTRUE)
     {
-        esp_err_t err = ESP_OK;
         switch (queue.id)
         {
         case TO_SEND:
-            ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processing begin.", MAC2STR(queue.data.mac_addr));
-            esp_now_peer_info_t *peer = heap_caps_calloc(1, sizeof(esp_now_peer_info_t), MALLOC_CAP_8BIT);
-            if (peer == NULL)
-            {
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. Memory allocation fail or no free memory in the heap.");
-                heap_caps_free(queue.data.payload);
-                break;
-            }
-            peer->ifidx = _init_config.wifi_interface;
-            memcpy(peer->peer_addr, queue.data.mac_addr, ESP_NOW_ETH_ALEN);
-            err = esp_now_add_peer(peer);
-            if (err == ESP_ERR_ESPNOW_NO_MEM)
-            {
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. No free memory in the heap for adding peer.");
-                heap_caps_free(queue.data.payload);
-                heap_caps_free(peer);
-                break;
-            }
-            else if (err != ESP_OK)
-            {
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. Internal error with adding peer.");
-                heap_caps_free(queue.data.payload);
-                heap_caps_free(peer);
-                break;
-            }
-            zh_espnow_event_on_send_t *on_send = heap_caps_calloc(1, sizeof(zh_espnow_event_on_send_t), MALLOC_CAP_8BIT);
-            if (on_send == NULL)
-            {
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail. Memory allocation fail or no free memory in the heap.");
-                heap_caps_free(queue.data.payload);
-                heap_caps_free(peer);
-                break;
-            }
-            memcpy(on_send->mac_addr, queue.data.mac_addr, ESP_NOW_ETH_ALEN);
-        SEND:
-            ++_attempts;
-            err = esp_now_send(queue.data.mac_addr, queue.data.payload, queue.data.payload_len);
-            if (err == ESP_ERR_ESPNOW_NO_MEM)
-            {
-                ESP_LOGE(TAG, "Sending ESP-NOW data fail. No free memory in the heap.");
-                heap_caps_free(queue.data.payload);
-                heap_caps_free(peer);
-                heap_caps_free(on_send);
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail.");
-                break;
-            }
-            else if (err != ESP_OK)
-            {
-                ESP_LOGE(TAG, "Sending ESP-NOW data fail. Internal error at line %d.", __LINE__);
-                heap_caps_free(queue.data.payload);
-                heap_caps_free(peer);
-                heap_caps_free(on_send);
-                ESP_LOGE(TAG, "Outgoing ESP-NOW data processing fail.");
-                break;
-            }
-            else
-            {
-                ESP_LOGI(TAG, "Sending ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X success.", MAC2STR(queue.data.mac_addr));
-            }
-            EventBits_t bit = xEventGroupWaitBits(_event_group_handle, DATA_SEND_SUCCESS | DATA_SEND_FAIL, pdTRUE, pdFALSE, 50 / portTICK_PERIOD_MS);
-            if ((bit & DATA_SEND_SUCCESS) != 0)
-            {
-                ESP_LOGI(TAG, "Confirmation message received. ESP-NOW message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent success after %d attempts.", MAC2STR(queue.data.mac_addr), _attempts);
-                on_send->status = ZH_ESPNOW_SEND_SUCCESS;
-                _attempts = 0;
-            }
-            else
-            {
-                if (_attempts < _init_config.attempts)
-                {
-                    goto SEND;
-                }
-                ESP_LOGE(TAG, "Confirmation message not received. ESP-NOW message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent fail.", MAC2STR(queue.data.mac_addr));
-                on_send->status = ZH_ESPNOW_SEND_FAIL;
-                _attempts = 0;
-            }
-            if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS) != ESP_OK)
-            {
-                ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
-            }
-            else
-            {
-                ESP_LOGI(TAG, "Outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
-            }
-            heap_caps_free(queue.data.payload);
-            esp_now_del_peer(peer->peer_addr);
-            heap_caps_free(peer);
-            heap_caps_free(on_send);
+            _zh_espnow_process_send(&queue);
             break;
         case ON_RECV:
-            ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processing begin.", MAC2STR(queue.data.mac_addr));
-            zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue.data;
-            if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS) != ESP_OK)
-            {
-                ESP_LOGE(TAG, "ESP-NOW message processing task internal error at line %d.", __LINE__);
-            }
-            else
-            {
-                ESP_LOGI(TAG, "Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed success.", MAC2STR(queue.data.mac_addr));
-            }
+            _zh_espnow_process_recv(&queue);
             break;
         default:
+            ZH_ESPNOW_LOGW("Unknown queue ID: %d.", queue.id);
             break;
         }
     }
@@ -362,7 +489,14 @@ static void IRAM_ATTR _processing(void *pvParameter)
 
 uint8_t zh_espnow_get_version(void)
 {
+    ZH_ESPNOW_LOGI("ESP-NOW version receipt started.");
     uint32_t version = 0;
-    esp_now_get_version(&version);
-    return version;
+    esp_err_t err = esp_now_get_version(&version);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("ESP-NOW version receiption failed.", err);
+        return 0;
+    }
+    ZH_ESPNOW_LOGI("ESP-NOW version receiption successfully.");
+    return (uint8_t)version;
 }
