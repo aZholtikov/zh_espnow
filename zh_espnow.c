@@ -215,7 +215,7 @@ esp_err_t zh_espnow_deinit(void)
     return final_status;
 }
 
-esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len)
+esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint16_t data_len)
 {
     ZH_ESPNOW_LOGI("Adding to queue outgoing ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR((target == NULL) ? _broadcast_mac : target));
     if (_is_initialized == false)

@@ -100,7 +100,7 @@ extern "C"
      *
      * @return ESP_OK if success or an error code otherwise.
      */
-    esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint8_t data_len);
+    esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint16_t data_len);
 
     /**
      * @brief Get ESP-NOW version.
