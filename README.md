@@ -67,7 +67,7 @@ typedef struct
 
 void app_main(void)
 {
-    esp_log_level_set("zh_espnow", ESP_LOG_NONE);
+    esp_log_level_set("zh_espnow", ESP_LOG_NONE); // For ESP8266 first enable "Component config -> Log output -> Enable log set level" via menuconfig.
     nvs_flash_init();
     esp_netif_init();
     esp_event_loop_create_default();
@@ -87,13 +87,23 @@ void app_main(void)
     send_message.float_value = 1.234;
     send_message.bool_value = false;
     printf("Used ESP-NOW version %d.\n", zh_espnow_get_version());
+    uint8_t counter = 0;
     for (;;)
     {
+        counter++;
         send_message.int_value = esp_random();
         zh_espnow_send(NULL, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
         zh_espnow_send(target, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
+        if (counter == 10)
+        {
+            counter = 0;
+            const zh_espnow_stats_t *stats = zh_espnow_get_stats();
+            printf("Number of successfully sent messages: %ld.\n", stats->sent_success);
+            printf("Number of failed sent messages: %ld.\n", stats->sent_fail);
+            printf("Number of received messages: %ld.\n", stats->received);
+        }
     }
 }
 

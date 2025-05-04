@@ -55,6 +55,7 @@ static EventGroupHandle_t _event_group_handle = {0};
 static QueueHandle_t _queue_handle = {0};
 static TaskHandle_t _processing_task_handle = {0};
 static zh_espnow_init_config_t _init_config = {0};
+static zh_espnow_stats_t _stats = {0};
 static bool _is_initialized = false;
 static const uint8_t _broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 #if defined ESP_NOW_MAX_DATA_LEN_V2
@@ -423,6 +424,7 @@ static void _zh_espnow_process_send(_queue_t *queue)
         {
             ESP_LOGI(TAG, "ESP-NOW data sent successfully to MAC %02X:%02X:%02X:%02X:%02X:%02X after %d attempts.", MAC2STR(queue->data.mac_addr), attempt + 1);
             on_send->status = ZH_ESPNOW_SEND_SUCCESS;
+            ++_stats.sent_success;
             break;
         }
         else
@@ -435,6 +437,7 @@ static void _zh_espnow_process_send(_queue_t *queue)
     {
         ESP_LOGE(TAG, "Failed to send ESP-NOW data to MAC %02X:%02X:%02X:%02X:%02X:%02X after %d attempts.", MAC2STR(queue->data.mac_addr), _init_config.attempts);
         on_send->status = ZH_ESPNOW_SEND_FAIL;
+        ++_stats.sent_fail;
     }
     err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS);
     if (err == ESP_OK)
@@ -455,6 +458,7 @@ static void _zh_espnow_process_recv(_queue_t *queue)
 {
     ZH_ESPNOW_LOGI("Processing incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR(queue->data.mac_addr));
     zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue->data;
+    ++_stats.received;
     esp_err_t err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS);
     if (err == ESP_OK)
     {
@@ -499,4 +503,9 @@ uint8_t zh_espnow_get_version(void)
     }
     ZH_ESPNOW_LOGI("ESP-NOW version receiption successfully.");
     return (uint8_t)version;
+}
+
+const zh_espnow_stats_t *zh_espnow_get_stats(void)
+{
+    return &_stats;
 }

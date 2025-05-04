@@ -62,6 +62,13 @@ extern "C"
         uint16_t data_len;                  // Size of the received ESP-NOW message.
     } zh_espnow_event_on_recv_t;
 
+    typedef struct // Structure for message statistics storage.
+    {
+        uint32_t sent_success; // Number of successfully sent messages.
+        uint32_t sent_fail;    // Number of failed sent messages.
+        uint32_t received;     // Number of received messages.
+    } zh_espnow_stats_t;
+
     /**
      * @brief Initialize ESP-NOW interface.
      *
@@ -101,6 +108,13 @@ extern "C"
      * @return ESP-NOW version if success or 0 otherwise.
      */
     uint8_t zh_espnow_get_version(void);
+
+    /**
+     * @brief Get ESP-NOW statistics.
+     *
+     * @return Pointer to the statistics structure.
+     */
+    const zh_espnow_stats_t *zh_espnow_get_stats(void);
 
 #ifdef __cplusplus
 }
