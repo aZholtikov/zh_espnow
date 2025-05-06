@@ -144,6 +144,22 @@ extern "C"
      */
     esp_err_t zh_espnow_set_attempts(uint8_t attempts);
 
+    /**
+     * @brief Get ESP-NOW channel.
+     *
+     * @return ESP-NOW channel if success or 0 otherwise.
+     */
+    uint8_t zh_espnow_get_channel(void);
+
+    /**
+     * @brief Set ESP-NOW channel.
+     *
+     * @param[in] channel ESP-NOW channel (1-14).
+     *
+     * @return ESP_OK if success or an error code otherwise.
+     */
+    esp_err_t zh_espnow_set_channel(uint8_t channel);
+
 #ifdef __cplusplus
 }
 #endif

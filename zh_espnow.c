@@ -536,3 +536,38 @@ esp_err_t zh_espnow_set_attempts(uint8_t attempts)
     ZH_ESPNOW_LOGI("Number of attempts set successfully.");
     return ESP_OK;
 }
+
+uint8_t zh_espnow_get_channel(void)
+{
+    if (_is_initialized == false)
+    {
+        ZH_ESPNOW_LOGE("ESP-NOW channel receiption failed. ESP-NOW is not initialized.");
+        return 0;
+    }
+    uint8_t prim_channel = 0;
+    wifi_second_chan_t sec_channel = 0;
+    esp_err_t err = esp_wifi_get_channel(&prim_channel, &sec_channel);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("ESP-NOW channel receiption failed.", err);
+        return 0;
+    }
+    _init_config.wifi_channel = prim_channel;
+    ZH_ESPNOW_LOGI("ESP-NOW channel receiption successfully.");
+    return prim_channel;
+}
+
+esp_err_t zh_espnow_set_channel(uint8_t channel)
+{
+    ZH_ESPNOW_CHECK(_is_initialized == true, ESP_ERR_INVALID_STATE, "ESP-NOW channel set failed. ESP-NOW is not initialized.");
+    ZH_ESPNOW_CHECK(channel > 0 && channel < 15, ESP_ERR_INVALID_ARG, "ESP-NOW channel set failed. Invalid channel.");
+    esp_err_t err = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    if (err != ESP_OK)
+    {
+        ZH_ESPNOW_LOGE_ERR("ESP-NOW channel set failed.", err);
+        return err;
+    }
+    _init_config.wifi_channel = channel;
+    ZH_ESPNOW_LOGI("ESP-NOW channel set successfully.");
+    return err;
+}
