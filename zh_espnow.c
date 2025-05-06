@@ -571,3 +571,25 @@ esp_err_t zh_espnow_set_channel(uint8_t channel)
     ZH_ESPNOW_LOGI("ESP-NOW channel set successfully.");
     return err;
 }
+
+bool zh_espnow_get_battery_mode(void)
+{
+    return _init_config.battery_mode;
+}
+
+esp_err_t zh_espnow_set_battery_mode(bool battery_mode)
+{
+    ZH_ESPNOW_CHECK(_is_initialized == true, ESP_ERR_INVALID_STATE, "Battery mode set failed. ESP-NOW is not initialized.");
+    esp_err_t err = esp_now_unregister_send_cb();
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "Battery mode set failed. Failed to unregister send callback.");
+    if (_init_config.battery_mode == false)
+    {
+        err = esp_now_unregister_recv_cb();
+        ZH_ESPNOW_CHECK(err == ESP_OK, err, "Battery mode set failed. Failed to unregister receive callback.");
+    }
+    err = _zh_espnow_register_callbacks(battery_mode);
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "Battery mode set failed. Failed to register callbacks.");
+    _init_config.battery_mode = battery_mode;
+    ZH_ESPNOW_LOGI("Battery mode set successfully.");
+    return ESP_OK;
+}

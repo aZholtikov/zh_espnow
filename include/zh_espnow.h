@@ -32,7 +32,7 @@ extern "C"
         wifi_interface_t wifi_interface; // WiFi interface (STA or AP) used for ESP-NOW operation. @note The MAC address of the device depends on the selected WiFi interface.
         uint8_t wifi_channel;            // Wi-Fi channel uses to send/receive ESP-NOW data. @note Values from 1 to 14.
         uint8_t attempts;                // Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10.
-        bool battery_mode;               // Battery operation mode. If true, the node does not receive messages.
+        bool battery_mode;               // Battery operation mode. If true the node does not receive messages.
     } zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
@@ -159,6 +159,24 @@ extern "C"
      * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_set_channel(uint8_t channel);
+
+    /**
+     * @brief Get battery mode.
+     *
+     * @return True if battery mode set false otherwise.
+     */
+    bool zh_espnow_get_battery_mode(void);
+
+    /**
+     * @brief Set battery mode.
+     *
+     * @param[in] battery_mode True to enable the mode false to disable it.
+     * 
+     * @note If true the node does not receive messages.
+     *
+     * @return ESP_OK if success or an error code otherwise.
+     */
+    esp_err_t zh_espnow_set_battery_mode(bool battery_mode);
 
 #ifdef __cplusplus
 }
