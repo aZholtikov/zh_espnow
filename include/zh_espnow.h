@@ -116,6 +116,11 @@ extern "C"
      */
     const zh_espnow_stats_t *zh_espnow_get_stats(void);
 
+    /**
+     * @brief Reset ESP-NOW statistics.
+     */
+    void zh_espnow_reset_stats(void);
+
 #ifdef __cplusplus
 }
 #endif

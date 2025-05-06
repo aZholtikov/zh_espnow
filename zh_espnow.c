@@ -509,3 +509,11 @@ const zh_espnow_stats_t *zh_espnow_get_stats(void)
 {
     return &_stats;
 }
+
+void zh_espnow_reset_stats(void)
+{
+    _stats.sent_success = 0;
+    _stats.sent_fail = 0;
+    _stats.received = 0;
+    ZH_ESPNOW_LOGI("ESP-NOW statistic reset successfully.");
+}
