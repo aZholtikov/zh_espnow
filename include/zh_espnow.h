@@ -124,7 +124,7 @@ extern "C"
     /**
      * @brief Check ESP-NOW initialization status.
      *
-     * @return true if ESP-NOW is initialized false otherwise.
+     * @return True if ESP-NOW is initialized false otherwise.
      */
     bool zh_espnow_is_initialized(void);
 
