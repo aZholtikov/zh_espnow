@@ -187,6 +187,18 @@ extern "C"
      */
     esp_err_t zh_espnow_get_mac(uint8_t *mac_addr);
 
+    /**
+     * @brief Get the number of available places in the queue.
+     *
+     * @return Number of available places.
+     */
+    uint8_t zh_espnow_get_queue_space(void);
+
+    /**
+     * @brief Clean up the message queue.
+     */
+    void zh_espnow_clear_queue(void);
+
 #ifdef __cplusplus
 }
 #endif

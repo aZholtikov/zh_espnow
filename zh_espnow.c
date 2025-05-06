@@ -272,7 +272,7 @@ static esp_err_t _zh_espnow_init_resources(const zh_espnow_init_config_t *config
     _event_group_handle = xEventGroupCreate();
     ZH_ESPNOW_CHECK(_event_group_handle != NULL, ESP_FAIL, "Event group creation failed.");
     _queue_handle = xQueueCreate(config->queue_size, sizeof(_queue_t));
-    ZH_ESPNOW_CHECK(_queue_handle != 0, ESP_FAIL, "Queue creation failed.");
+    ZH_ESPNOW_CHECK(_queue_handle != NULL, ESP_FAIL, "Queue creation failed.");
     return ESP_OK;
 }
 
@@ -597,4 +597,29 @@ esp_err_t zh_espnow_set_battery_mode(bool battery_mode)
 esp_err_t zh_espnow_get_mac(uint8_t *mac_addr)
 {
     return esp_wifi_get_mac(_init_config.wifi_interface, mac_addr);
+}
+
+uint8_t zh_espnow_get_queue_space(void)
+{
+    if (_queue_handle == NULL)
+    {
+        return 0;
+    }
+    return uxQueueSpacesAvailable(_queue_handle);
+}
+
+void zh_espnow_clear_queue(void)
+{
+    if (_queue_handle != NULL)
+    {
+        _queue_t queue = {0};
+        while (xQueueReceive(_queue_handle, &queue, 0) == pdTRUE)
+        {
+            if (queue.data.payload != NULL)
+            {
+                heap_caps_free(queue.data.payload);
+            }
+        }
+        ZH_ESPNOW_LOGI("Queue clear completed successfully.");
+    }
 }
