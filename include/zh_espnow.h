@@ -171,12 +171,21 @@ extern "C"
      * @brief Set battery mode.
      *
      * @param[in] battery_mode True to enable the mode false to disable it.
-     * 
+     *
      * @note If true the node does not receive messages.
      *
      * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_set_battery_mode(bool battery_mode);
+
+    /**
+     * @brief Get MAC address of the node.
+     *
+     * @param[out] mac_addr Pointer to a buffer containing an eight-byte MAC.
+     *
+     * @return ESP_OK if success or an error code otherwise.
+     */
+    esp_err_t zh_espnow_get_mac(uint8_t *mac_addr);
 
 #ifdef __cplusplus
 }

@@ -593,3 +593,8 @@ esp_err_t zh_espnow_set_battery_mode(bool battery_mode)
     ZH_ESPNOW_LOGI("Battery mode set successfully.");
     return ESP_OK;
 }
+
+esp_err_t zh_espnow_get_mac(uint8_t *mac_addr)
+{
+    return esp_wifi_get_mac(_init_config.wifi_interface, mac_addr);
+}

@@ -86,8 +86,11 @@ void app_main(void)
     strcpy(send_message.char_value, "THIS IS A CHAR");
     send_message.float_value = 1.234;
     send_message.bool_value = false;
-    printf("Used ESP-NOW version %d.\n", zh_espnow_get_version());
+    printf("ESP-NOW version %d.\n", zh_espnow_get_version());
     printf("ESP-NOW channel %d. \n", zh_espnow_get_channel());
+    uint8_t node_mac[6] = {0};
+    zh_espnow_get_mac(node_mac);
+    printf("ESP-NOW MAC %02X:%02X:%02X:%02X:%02X:%02X.\n", MAC2STR(node_mac));
     uint8_t counter = 0;
     for (;;)
     {
