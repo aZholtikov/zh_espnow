@@ -522,3 +522,17 @@ bool zh_espnow_is_initialized(void)
 {
     return _is_initialized;
 }
+
+uint8_t zh_espnow_get_attempts(void)
+{
+    return _init_config.attempts;
+}
+
+esp_err_t zh_espnow_set_attempts(uint8_t attempts)
+{
+    ZH_ESPNOW_CHECK(_is_initialized == true, ESP_ERR_INVALID_STATE, "ESP-NOW is not initialized.");
+    ZH_ESPNOW_CHECK(attempts > 0, ESP_ERR_INVALID_ARG, "Invalid number of attempts.");
+    _init_config.attempts = attempts;
+    ZH_ESPNOW_LOGI("Number of attempts set successfully.");
+    return ESP_OK;
+}

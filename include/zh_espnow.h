@@ -128,6 +128,22 @@ extern "C"
      */
     bool zh_espnow_is_initialized(void);
 
+    /**
+     * @brief Get number of attempts.
+     *
+     * @return Attemps number.
+     */
+    uint8_t zh_espnow_get_attempts(void);
+
+    /**
+     * @brief Set number of attempts.
+     *
+     * @param[in] attempts Attemps number.
+     *
+     * @return ESP_OK if success or an error code otherwise.
+     */
+    esp_err_t zh_espnow_set_attempts(uint8_t attempts);
+
 #ifdef __cplusplus
 }
 #endif
