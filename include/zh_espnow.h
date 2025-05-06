@@ -121,6 +121,13 @@ extern "C"
      */
     void zh_espnow_reset_stats(void);
 
+    /**
+     * @brief Check ESP-NOW initialization status.
+     *
+     * @return true if ESP-NOW is initialized false otherwise.
+     */
+    bool zh_espnow_is_initialized(void);
+
 #ifdef __cplusplus
 }
 #endif

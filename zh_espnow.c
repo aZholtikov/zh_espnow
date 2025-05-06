@@ -517,3 +517,8 @@ void zh_espnow_reset_stats(void)
     _stats.received = 0;
     ZH_ESPNOW_LOGI("ESP-NOW statistic reset successfully.");
 }
+
+bool zh_espnow_is_initialized(void)
+{
+    return _is_initialized;
+}
