@@ -459,7 +459,7 @@ static void _zh_espnow_process_recv(_queue_t *queue)
     ZH_ESPNOW_LOGI("Processing incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X started.", MAC2STR(queue->data.mac_addr));
     zh_espnow_event_on_recv_t *recv_data = (zh_espnow_event_on_recv_t *)&queue->data;
     ++_stats.received;
-    esp_err_t err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, recv_data->data_len + sizeof(recv_data->mac_addr) + sizeof(uint8_t), portTICK_PERIOD_MS);
+    esp_err_t err = esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, sizeof(zh_espnow_event_on_recv_t), portTICK_PERIOD_MS);
     if (err == ESP_OK)
     {
         ZH_ESPNOW_LOGI("Incoming ESP-NOW data from MAC %02X:%02X:%02X:%02X:%02X:%02X processed successfully.", MAC2STR(queue->data.mac_addr));
