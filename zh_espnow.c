@@ -51,9 +51,9 @@ static void _zh_espnow_process_send(_queue_t *queue);
 static void _zh_espnow_process_recv(_queue_t *queue);
 static void _zh_espnow_processing(void *pvParameter);
 
-static EventGroupHandle_t _event_group_handle = {0};
-static QueueHandle_t _queue_handle = {0};
-static TaskHandle_t _processing_task_handle = {0};
+static EventGroupHandle_t _event_group_handle = NULL;
+static QueueHandle_t _queue_handle = NULL;
+static TaskHandle_t _processing_task_handle = NULL;
 static zh_espnow_init_config_t _init_config = {0};
 static zh_espnow_stats_t _stats = {0};
 static bool _is_initialized = false;
