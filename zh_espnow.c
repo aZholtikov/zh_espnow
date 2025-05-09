@@ -14,6 +14,13 @@ static const char *TAG = "zh_espnow";
         return err;                          \
     }
 
+#define ZH_ESPNOW_CHECK_GOTO(cond, err, tag, msg, ...) \
+    if (!(cond))                                       \
+    {                                                  \
+        ZH_ESPNOW_LOGE_ERR(msg, err);                  \
+        goto tag;                                      \
+    }
+
 #define DATA_SEND_SUCCESS BIT0
 #define DATA_SEND_FAIL BIT1
 #define WAIT_CONFIRM_MAX_TIME 50
@@ -73,66 +80,24 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
         return ESP_OK;
     }
     esp_err_t err = _zh_espnow_validate_config(config);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Initial configuration check failed.");
-        return err;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("ESP-NOW initial configuration check completed successfully.");
-    }
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "ESP-NOW initialization failed. Initial configuration check failed.");
+    ZH_ESPNOW_LOGI("ESP-NOW initial configuration check completed successfully.");
     _init_config = *config;
     err = _zh_espnow_init_wifi(config);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. WiFi initialization failed.");
-        return err;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("WiFi initialization completed successfully.");
-    }
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "ESP-NOW initialization failed. WiFi initialization failed.");
+    ZH_ESPNOW_LOGI("WiFi initialization completed successfully.");
     err = _zh_espnow_init_resources(config);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Resources initialization failed.");
-        goto CLEANUP;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("ESP-NOW resources initialization completed successfully.");
-    }
+    ZH_ESPNOW_CHECK_GOTO(err == ESP_OK, err, CLEANUP, "ESP-NOW initialization failed. Resources initialization failed.");
+    ZH_ESPNOW_LOGI("ESP-NOW resources initialization completed successfully.");
     err = esp_now_init();
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE_ERR("ESP-NOW initialization failed. ESP-NOW driver initialization failed.", err);
-        goto CLEANUP;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("ESP-NOW driver initialization completed successfully.");
-    }
+    ZH_ESPNOW_CHECK_GOTO(err == ESP_OK, err, CLEANUP, "ESP-NOW initialization failed. ESP-NOW driver initialization failed.");
+    ZH_ESPNOW_LOGI("ESP-NOW driver initialization completed successfully.");
     err = _zh_espnow_register_callbacks(config->battery_mode);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. ESP-NOW callbacks registration failed.");
-        goto CLEANUP;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("ESP-NOW callbacks registered successfully.");
-    }
+    ZH_ESPNOW_CHECK_GOTO(err == ESP_OK, err, CLEANUP, "ESP-NOW initialization failed. ESP-NOW callbacks registration failed.");
+    ZH_ESPNOW_LOGI("ESP-NOW callbacks registered successfully.");
     err = _zh_espnow_create_task(config);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE("ESP-NOW initialization failed. Processing task initialization failed.");
-        goto CLEANUP;
-    }
-    else
-    {
-        ZH_ESPNOW_LOGI("ESP-NOW processing task initialization completed successfully.");
-    }
+    ZH_ESPNOW_CHECK_GOTO(err == ESP_OK, err, CLEANUP, "ESP-NOW initialization failed. Processing task initialization failed.");
+    ZH_ESPNOW_LOGI("ESP-NOW processing task initialization completed successfully.");
     _is_initialized = true;
     ZH_ESPNOW_LOGI("ESP-NOW initialization completed successfully.");
     return ESP_OK;
@@ -562,11 +527,7 @@ esp_err_t zh_espnow_set_channel(uint8_t channel)
     ZH_ESPNOW_CHECK(_is_initialized == true, ESP_ERR_INVALID_STATE, "ESP-NOW channel set failed. ESP-NOW is not initialized.");
     ZH_ESPNOW_CHECK(channel > 0 && channel < 15, ESP_ERR_INVALID_ARG, "ESP-NOW channel set failed. Invalid channel.");
     esp_err_t err = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
-    if (err != ESP_OK)
-    {
-        ZH_ESPNOW_LOGE_ERR("ESP-NOW channel set failed.", err);
-        return err;
-    }
+    ZH_ESPNOW_CHECK(err == ESP_OK, err, "ESP-NOW channel set failed.");
     _init_config.wifi_channel = channel;
     ZH_ESPNOW_LOGI("ESP-NOW channel set successfully.");
     return err;
