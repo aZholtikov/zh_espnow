@@ -48,7 +48,12 @@ static esp_err_t _zh_espnow_init_resources(const zh_espnow_init_config_t *config
 static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *config);
 static esp_err_t _zh_espnow_register_callbacks(bool battery_mode);
 static esp_err_t _zh_espnow_create_task(const zh_espnow_init_config_t *config);
+
+#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5
+static void _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_send_status_t status);
+#else
 static void _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
+#endif
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
 static void _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
 #else
@@ -277,6 +282,23 @@ static esp_err_t _zh_espnow_register_callbacks(bool battery_mode)
     return ESP_OK;
 }
 
+#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5
+static void IRAM_ATTR _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_send_status_t status)
+{
+    if (esp_now_info == NULL)
+    {
+        ZH_ESPNOW_LOGE("Send callback received NULL MAC address.");
+        return;
+    }
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    ZH_ESPNOW_LOGI("ESP-NOW send callback: %s for MAC %02X:%02X:%02X:%02X:%02X:%02X.", (status == ESP_NOW_SEND_SUCCESS) ? "SUCCESS" : "FAIL", MAC2STR(esp_now_info->des_addr));
+    xEventGroupSetBitsFromISR(_event_group_handle, (status == ESP_NOW_SEND_SUCCESS) ? DATA_SEND_SUCCESS : DATA_SEND_FAIL, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken == pdTRUE)
+    {
+        portYIELD_FROM_ISR();
+    };
+}
+#else
 static void IRAM_ATTR _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
     if (mac_addr == NULL)
@@ -292,6 +314,7 @@ static void IRAM_ATTR _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_s
         portYIELD_FROM_ISR();
     };
 }
+#endif
 
 #if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
 static void IRAM_ATTR _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
