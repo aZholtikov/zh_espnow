@@ -1,3 +1,7 @@
+/**
+ * @file zh_espnow.h
+ */
+
 #pragma once
 
 #include "string.h"
@@ -9,6 +13,9 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 
+/**
+ * @brief ESP-NOW interface initial default values.
+ */
 #define ZH_ESPNOW_INIT_CONFIG_DEFAULT() \
     {                                   \
         .task_priority = 10,            \
@@ -24,49 +31,71 @@ extern "C"
 {
 #endif
 
-    typedef struct // Structure for initial initialization of ESP-NOW interface.
+    /**
+     * @brief Structure for initial initialization of ESP-NOW interface.
+     */
+    typedef struct
     {
-        uint8_t task_priority;           // Task priority for the ESP-NOW messages processing. @note The minimum size is 5.
-        uint16_t stack_size;             // Stack size for task for the ESP-NOW messages processing. @note The minimum size is 2048.
-        uint8_t queue_size;              // Queue size for task for the ESP-NOW messages processing. @note The size depends on the number of messages to be processed. The minimum size is 16.
-        wifi_interface_t wifi_interface; // WiFi interface (STA or AP) used for ESP-NOW operation. @note The MAC address of the device depends on the selected WiFi interface.
-        uint8_t wifi_channel;            // Wi-Fi channel uses to send/receive ESP-NOW data. @note Values from 1 to 14.
-        uint8_t attempts;                // Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10.
-        bool battery_mode;               // Battery operation mode. If true the node does not receive messages.
+        uint8_t task_priority;           /*!< Task priority for the ESP-NOW messages processing. @note The minimum value is 5. */
+        uint16_t stack_size;             /*!< Stack size for task for the ESP-NOW messages processing. @note The minimum size is 2048. */
+        uint8_t queue_size;              /*!< Queue size for task for the ESP-NOW messages processing. @note The minimum value is 10. */
+        wifi_interface_t wifi_interface; /*!< WiFi interface (STA or AP) used for ESP-NOW operation. */
+        uint8_t wifi_channel;            /*!< Wi-Fi channel uses to send/receive ESP-NOW data. */
+        uint8_t attempts;                /*!< Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10. */
+        bool battery_mode;               /*!< Battery operation mode. If true the node does not receive messages. */
     } zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
 
-    typedef enum // Enumeration of possible ESP-NOW events.
+    /**
+     * @brief Enumeration of possible ESP-NOW events.
+     */
+    typedef enum
     {
-        ZH_ESPNOW_ON_RECV_EVENT, // The event when the ESP-NOW message was received.
-        ZH_ESPNOW_ON_SEND_EVENT  // The event when the ESP-NOW message was sent.
+        ZH_ESPNOW_ON_RECV_EVENT, /*!< The event when the ESP-NOW message was received. */
+        ZH_ESPNOW_ON_SEND_EVENT  /*!< The event when the ESP-NOW message was sent. */
     } zh_espnow_event_type_t;
 
-    typedef enum // Enumeration of possible status of sent ESP-NOW message.
+    /**
+     * @brief Enumeration of possible status of sent ESP-NOW message.
+     */
+    typedef enum
     {
-        ZH_ESPNOW_SEND_SUCCESS, // If ESP-NOW message was sent success.
-        ZH_ESPNOW_SEND_FAIL     // If ESP-NOW message was sent fail.
+        ZH_ESPNOW_SEND_SUCCESS, /*!< If ESP-NOW message was sent success. */
+        ZH_ESPNOW_SEND_FAIL     /*!< If ESP-NOW message was sent fail. */
     } zh_espnow_on_send_event_type_t;
 
-    typedef struct // Structure for sending data to the event handler when an ESP-NOW message was sent. @note Should be used with ZH_ESPNOW event base and ZH_ESPNOW_ON_SEND_EVENT event.
+    /**
+     * @brief Structure for sending data to the event handler when an ESP-NOW message was sent.
+     *
+     * @note Should be used with ZH_ESPNOW event base and ZH_ESPNOW_ON_SEND_EVENT event.
+     */
+    typedef struct
     {
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN];    // MAC address of the device to which the ESP-NOW message was sent.
-        zh_espnow_on_send_event_type_t status; // Status of sent ESP-NOW message.
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN];    /*!< MAC address of the device to which the ESP-NOW message was sent. */
+        zh_espnow_on_send_event_type_t status; /*!< Status of sent ESP-NOW message. */
     } zh_espnow_event_on_send_t;
 
-    typedef struct // Structure for sending data to the event handler when an ESP-NOW message was received. @note Should be used with ZH_ESPNOW event base and ZH_ESPNOW_ON_RECV_EVENT event.
+    /**
+     * @brief Structure for sending data to the event handler when an ESP-NOW message was received.
+     *
+     * @note Should be used with ZH_ESPNOW event base and ZH_ESPNOW_ON_RECV_EVENT event.
+     */
+    typedef struct
     {
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; // MAC address of the sender ESP-NOW message.
-        uint8_t *data;                      // Pointer to the data of the received ESP-NOW message.
-        uint16_t data_len;                  // Size of the received ESP-NOW message.
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address of the sender ESP-NOW message. */
+        uint8_t *data;                      /*!< Pointer to the data of the received ESP-NOW message. */
+        uint16_t data_len;                  /*!< Size of the received ESP-NOW message. */
     } zh_espnow_event_on_recv_t;
 
-    typedef struct // Structure for message statistics storage.
+    /**
+     * @brief Structure for message statistics storage.
+     */
+    typedef struct
     {
-        uint32_t sent_success; // Number of successfully sent messages.
-        uint32_t sent_fail;    // Number of failed sent messages.
-        uint32_t received;     // Number of received messages.
+        uint32_t sent_success; /*!< Number of successfully sent messages. */
+        uint32_t sent_fail;    /*!< Number of failed sent messages. */
+        uint32_t received;     /*!< Number of received messages. */
     } zh_espnow_stats_t;
 
     /**
