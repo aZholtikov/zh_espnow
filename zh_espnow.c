@@ -63,9 +63,9 @@ static void _zh_espnow_process_send(_queue_t *queue);
 static void _zh_espnow_process_recv(_queue_t *queue);
 static void _zh_espnow_processing(void *pvParameter);
 
+TaskHandle_t zh_espnow = NULL;
 static EventGroupHandle_t _event_group_handle = NULL;
 static QueueHandle_t _queue_handle = NULL;
-static TaskHandle_t _processing_task_handle = NULL;
 static zh_espnow_init_config_t _init_config = {0};
 static zh_espnow_stats_t _stats = {0};
 static bool _is_initialized = false;
@@ -174,10 +174,10 @@ esp_err_t zh_espnow_deinit(void)
     {
         ZH_ESPNOW_LOGI("ESP-NOW driver deinitialized.");
     }
-    if (_processing_task_handle != NULL)
+    if (zh_espnow != NULL)
     {
-        vTaskDelete(_processing_task_handle);
-        _processing_task_handle = NULL;
+        vTaskDelete(zh_espnow);
+        zh_espnow = NULL;
         ZH_ESPNOW_LOGI("Processing task deleted.");
     }
     _is_initialized = false;
@@ -254,7 +254,7 @@ static esp_err_t _zh_espnow_create_task(const zh_espnow_init_config_t *config)
         config->stack_size,
         NULL,
         config->task_priority,
-        &_processing_task_handle,
+        &zh_espnow,
         tskNO_AFFINITY);
     ZH_ESPNOW_CHECK(err == pdPASS, ESP_FAIL, "Task creation failed.");
     return ESP_OK;

@@ -31,6 +31,8 @@ extern "C"
 {
 #endif
 
+    extern TaskHandle_t zh_espnow; /*!< ESP-NOW interface Task Handle. */
+
     /**
      * @brief Structure for initial initialization of ESP-NOW interface.
      */
