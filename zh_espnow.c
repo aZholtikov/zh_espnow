@@ -51,7 +51,7 @@ static esp_err_t _zh_espnow_resources_init(const zh_espnow_init_config_t *config
 static esp_err_t _zh_espnow_task_init(const zh_espnow_init_config_t *config);
 static esp_err_t _zh_espnow_callbacks_register(bool battery_mode);
 
-#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5
+#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5) || ESP_IDF_VERSION_MAJOR >= 6
 static void _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_send_status_t status);
 #else
 static void _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -170,7 +170,7 @@ static esp_err_t _zh_espnow_callbacks_register(bool battery_mode)
     return ESP_OK;
 }
 
-#if ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5
+#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 5) || ESP_IDF_VERSION_MAJOR >= 6
 static void IRAM_ATTR _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_send_status_t status)
 {
     if (esp_now_info == NULL)

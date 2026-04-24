@@ -2,7 +2,7 @@
 
 ## Tested on
 
-1. [ESP32 ESP-IDF v5.5](https://docs.espressif.com/projects/esp-idf/en/release-v5.5/esp32/index.html)
+1. [ESP32 ESP-IDF v6.0.0](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/index.html)
 
 ## Features
 
@@ -70,11 +70,11 @@ void app_main(void)
     esp_wifi_init(&wifi_init_config);
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
-    zh_espnow_init_config_t espnow_init_config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
+    zh_espnow_init_config_t config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
     config.task_priority = 10;
     config.stack_size = 2048;
     config.queue_size = 5;
-    zh_espnow_init(&espnow_init_config);
+    zh_espnow_init(&config);
     esp_event_handler_instance_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL, NULL);
     example_message_t send_message = {0};
     strcpy(send_message.char_value, "THIS IS A CHAR");
