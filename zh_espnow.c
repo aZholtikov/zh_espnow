@@ -56,11 +56,7 @@ static void _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_
 #else
 static void _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
 #endif
-#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-static void _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len);
-#else
 static void _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
-#endif
 static void _zh_espnow_process_send(_queue_t *queue);
 static void _zh_espnow_process_recv(_queue_t *queue);
 static void _zh_espnow_processing(void *pvParameter);
@@ -139,7 +135,7 @@ static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *confi
 static esp_err_t _zh_espnow_wifi_init(const zh_espnow_init_config_t *config)
 {
     ZH_ERROR_CHECK(esp_wifi_set_channel(config->wifi_channel, WIFI_SECOND_CHAN_NONE) == ESP_OK, ESP_FAIL, NULL, "WiFi channel setup failed.");
-#if defined CONFIG_IDF_TARGET_ESP8266 || CONFIG_IDF_TARGET_ESP32C2
+#if defined CONFIG_IDF_TARGET_ESP32C2
     ZH_ERROR_CHECK(esp_wifi_set_protocol(config->wifi_interface, WIFI_PROTOCOL_11B) == ESP_OK, ESP_FAIL, NULL, "WiFi protocol setup failed.");
 #else
     ZH_ERROR_CHECK(esp_wifi_set_protocol(config->wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_LR) == ESP_OK, ESP_FAIL, NULL, "WiFi protocol setup failed.");
@@ -196,17 +192,9 @@ static void IRAM_ATTR _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_s
     };
 }
 
-#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-static void IRAM_ATTR _zh_espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
-#else
 static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len)
-#endif
 {
-#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-    if (mac_addr == NULL || data == NULL || data_len <= 0)
-#else
     if (esp_now_info == NULL || data == NULL || data_len <= 0)
-#endif
     {
         ZH_LOGE("Receive callback received invalid arguments.", ESP_ERR_INVALID_ARG);
         return;
@@ -218,11 +206,7 @@ static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info
     }
     _queue_t queue = {0};
     queue.id = ON_RECV;
-#if defined CONFIG_IDF_TARGET_ESP8266 || ESP_IDF_VERSION_MAJOR == 4
-    memcpy(queue.data.mac_addr, mac_addr, ESP_NOW_ETH_ALEN);
-#else
     memcpy(queue.data.mac_addr, esp_now_info->src_addr, ESP_NOW_ETH_ALEN);
-#endif
     queue.data.payload = heap_caps_calloc(1, data_len, MALLOC_CAP_8BIT);
     if (queue.data.payload == NULL)
     {
