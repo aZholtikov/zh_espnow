@@ -16,14 +16,14 @@
 /**
  * @brief ESP-NOW interface initial default values.
  */
-#define ZH_ESPNOW_INIT_CONFIG_DEFAULT() \
-    {                                   \
-        .task_priority = 10,            \
-        .stack_size = 3072,             \
-        .queue_size = 64,               \
-        .wifi_interface = WIFI_IF_STA,  \
-        .wifi_channel = 1,              \
-        .attempts = 3,                  \
+#define ZH_ESPNOW_INIT_CONFIG_DEFAULT()         \
+    {                                           \
+        .task_priority = 1,                     \
+        .stack_size = configMINIMAL_STACK_SIZE, \
+        .queue_size = 1,                        \
+        .wifi_interface = WIFI_IF_STA,          \
+        .wifi_channel = 1,                      \
+        .attempts = 1,                          \
         .battery_mode = false}
 
 #ifdef __cplusplus
@@ -38,9 +38,9 @@ extern "C"
      */
     typedef struct
     {
-        uint8_t task_priority;           /*!< Task priority for the ESP-NOW messages processing. @note The minimum value is 5. */
-        uint16_t stack_size;             /*!< Stack size for task for the ESP-NOW messages processing. @note The minimum size is 2048. */
-        uint8_t queue_size;              /*!< Queue size for task for the ESP-NOW messages processing. @note The minimum value is 10. */
+        uint8_t task_priority;           /*!< Task priority for the ESP-NOW messages processing. @note Recommended value is 5. */
+        uint16_t stack_size;             /*!< Stack size for task for the ESP-NOW messages processing. @note Recommended value is 2048. */
+        uint8_t queue_size;              /*!< Queue size for task for the ESP-NOW messages processing. @note Recommended value is 10. */
         wifi_interface_t wifi_interface; /*!< WiFi interface (STA or AP) used for ESP-NOW operation. */
         uint8_t wifi_channel;            /*!< Wi-Fi channel uses to send/receive ESP-NOW data. */
         uint8_t attempts;                /*!< Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10. */
