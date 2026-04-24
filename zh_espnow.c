@@ -26,9 +26,9 @@ typedef struct
     } id;
     struct
     {
+        uint16_t payload_len;
         uint8_t mac_addr[ESP_NOW_ETH_ALEN];
         uint8_t *payload;
-        uint16_t payload_len;
     } data;
 } _queue_t;
 
@@ -63,7 +63,7 @@ static void _zh_espnow_processing(void *pvParameter);
 
 ESP_EVENT_DEFINE_BASE(ZH_ESPNOW);
 
-esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
+esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config) // -V2008
 {
     ZH_LOGI("ESP-NOW initialization started.");
     ZH_ERROR_CHECK(config != NULL, ESP_ERR_INVALID_ARG, NULL, "ESP-NOW initialization failed. Invalid argument.");
@@ -87,7 +87,7 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config)
     return ESP_OK;
 }
 
-esp_err_t zh_espnow_deinit(void)
+esp_err_t zh_espnow_deinit(void) // -V2008
 {
     ZH_LOGI("ESP-NOW deinitialization started.");
     ZH_ERROR_CHECK(_is_initialized == false, ESP_ERR_NOT_FOUND, NULL, "ESP-NOW deinitialization failed. ESP-NOW not initialized.");
@@ -105,7 +105,7 @@ esp_err_t zh_espnow_deinit(void)
     return ESP_OK;
 }
 
-esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint16_t data_len)
+esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint16_t data_len) // -V2008
 {
     ZH_LOGI("Adding to queue outgoing ESP-NOW data started.");
     ZH_ERROR_CHECK(_is_initialized == true, ESP_ERR_NOT_FOUND, NULL, "Adding to queue outgoing ESP-NOW data failed. ESP-NOW is not initialized.");

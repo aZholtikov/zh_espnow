@@ -4,6 +4,10 @@
 
 1. [ESP32 ESP-IDF v6.0.0](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/index.html)
 
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
+
 ## Features
 
 1. The maximum size of the transmitted data is up to 250 / 1490 bytes. Please see attention for details.
@@ -54,9 +58,9 @@ uint8_t target[6] = {0xEC, 0x94, 0xCB, 0x87, 0xEC, 0xFC};
 
 typedef struct
 {
-    char char_value[30];
-    int int_value;
     float float_value;
+    int int_value;
+    char char_value[30];
     bool bool_value;
 } example_message_t;
 

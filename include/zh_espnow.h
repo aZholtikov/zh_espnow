@@ -38,13 +38,13 @@ extern "C"
      */
     typedef struct
     {
-        uint8_t task_priority;           /*!< Task priority for the ESP-NOW messages processing. @note Recommended value is 5. */
         uint16_t stack_size;             /*!< Stack size for task for the ESP-NOW messages processing. @note Recommended value is 2048. */
+        uint8_t task_priority;           /*!< Task priority for the ESP-NOW messages processing. @note Recommended value is 5. */
         uint8_t queue_size;              /*!< Queue size for task for the ESP-NOW messages processing. @note Recommended value is 10. */
-        wifi_interface_t wifi_interface; /*!< WiFi interface (STA or AP) used for ESP-NOW operation. */
         uint8_t wifi_channel;            /*!< Wi-Fi channel uses to send/receive ESP-NOW data. */
         uint8_t attempts;                /*!< Maximum number of attempts to send a message. @note It is not recommended to set a value greater than 10. */
         bool battery_mode;               /*!< Battery operation mode. If true the node does not receive messages. */
+        wifi_interface_t wifi_interface; /*!< WiFi interface (STA or AP) used for ESP-NOW operation. */
     } zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
@@ -85,9 +85,9 @@ extern "C"
      */
     typedef struct
     {
+        uint16_t data_len;                  /*!< Size of the received ESP-NOW message. */
         uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address of the sender ESP-NOW message. */
         uint8_t *data;                      /*!< Pointer to the data of the received ESP-NOW message. */
-        uint16_t data_len;                  /*!< Size of the received ESP-NOW message. */
     } zh_espnow_event_on_recv_t;
 
     /**
