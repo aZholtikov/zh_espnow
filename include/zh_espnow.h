@@ -153,63 +153,6 @@ extern "C"
     void zh_espnow_reset_stats(void);
 
     /**
-     * @brief Check ESP-NOW initialization status.
-     *
-     * @return True if ESP-NOW is initialized false otherwise.
-     */
-    bool zh_espnow_is_initialized(void);
-
-    /**
-     * @brief Get number of attempts.
-     *
-     * @return Attemps number.
-     */
-    uint8_t zh_espnow_get_attempts(void);
-
-    /**
-     * @brief Set number of attempts.
-     *
-     * @param[in] attempts Attemps number.
-     *
-     * @return ESP_OK if success or an error code otherwise.
-     */
-    esp_err_t zh_espnow_set_attempts(uint8_t attempts);
-
-    /**
-     * @brief Get ESP-NOW channel.
-     *
-     * @return ESP-NOW channel if success or 0 otherwise.
-     */
-    uint8_t zh_espnow_get_channel(void);
-
-    /**
-     * @brief Set ESP-NOW channel.
-     *
-     * @param[in] channel ESP-NOW channel (1-14).
-     *
-     * @return ESP_OK if success or an error code otherwise.
-     */
-    esp_err_t zh_espnow_set_channel(uint8_t channel);
-
-    /**
-     * @brief Get battery mode.
-     *
-     * @return True if battery mode set false otherwise.
-     */
-    bool zh_espnow_get_battery_mode(void);
-
-    /**
-     * @brief Set battery mode.
-     *
-     * @param[in] battery_mode True to enable the mode false to disable it.
-     *
-     * @note If true the node does not receive messages.
-     *
-     * @return ESP_OK if success or an error code otherwise.
-     */
-    esp_err_t zh_espnow_set_battery_mode(bool battery_mode);
-
-    /**
      * @brief Get MAC address of the node.
      *
      * @param[out] mac_addr Pointer to a buffer containing an eight-byte MAC.
@@ -217,18 +160,6 @@ extern "C"
      * @return ESP_OK if success or an error code otherwise.
      */
     esp_err_t zh_espnow_get_mac(uint8_t *mac_addr);
-
-    /**
-     * @brief Get the number of available places in the queue.
-     *
-     * @return Number of available places.
-     */
-    uint8_t zh_espnow_get_queue_space(void);
-
-    /**
-     * @brief Clean up the message queue.
-     */
-    void zh_espnow_clear_queue(void);
 
 #ifdef __cplusplus
 }

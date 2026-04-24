@@ -87,14 +87,13 @@ void app_main(void)
     send_message.float_value = 1.234;
     send_message.bool_value = false;
     printf("ESP-NOW version %d.\n", zh_espnow_get_version());
-    printf("ESP-NOW channel %d. \n", zh_espnow_get_channel());
     uint8_t node_mac[6] = {0};
     zh_espnow_get_mac(node_mac);
     printf("ESP-NOW MAC %02X:%02X:%02X:%02X:%02X:%02X.\n", MAC2STR(node_mac));
     uint8_t counter = 0;
     for (;;)
     {
-        counter++;
+        ++counter;
         send_message.int_value = esp_random();
         zh_espnow_send(NULL, (uint8_t *)&send_message, sizeof(send_message));
         vTaskDelay(5000 / portTICK_PERIOD_MS);
