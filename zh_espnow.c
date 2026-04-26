@@ -82,6 +82,7 @@ esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config) // -V2008
                    vQueueDelete(_queue_handle);
                    vTaskDelete(zh_espnow), "ESP-NOW initialization failed. ESP-NOW callbacks registration failed.");
     _init_config = *config;
+    _stats.min_stack_size = config->stack_size;
     _is_initialized = true;
     ZH_LOGI("ESP-NOW initialization completed successfully.");
     return ESP_OK;
@@ -110,7 +111,7 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint1
     ZH_LOGI("Adding to queue outgoing ESP-NOW data started.");
     ZH_ERROR_CHECK(_is_initialized == true, ESP_ERR_NOT_FOUND, NULL, "Adding to queue outgoing ESP-NOW data failed. ESP-NOW is not initialized.");
     ZH_ERROR_CHECK(data != NULL && data_len > 0 && data_len <= _max_message_size, ESP_ERR_INVALID_ARG, NULL, "Adding to queue outgoing ESP-NOW data failed. Invalid argument.");
-    ZH_ERROR_CHECK(uxQueueSpacesAvailable(_queue_handle) > _init_config.queue_size / 10, ESP_ERR_INVALID_STATE, NULL, "Adding to queue outgoing ESP-NOW data failed. Queue is almost full.");
+    ZH_ERROR_CHECK(uxQueueSpacesAvailable(_queue_handle) > _init_config.queue_size / 10, ESP_ERR_INVALID_STATE, ++_stats.queue_overflow_error, "Adding to queue outgoing ESP-NOW data failed. Queue is almost full.");
     _queue_t queue = {0};
     queue.id = TO_SEND;
     memcpy(queue.data.mac_addr, (target == NULL) ? _broadcast_mac : target, ESP_NOW_ETH_ALEN);
@@ -118,9 +119,41 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint1
     ZH_ERROR_CHECK(queue.data.payload != NULL, ESP_ERR_NO_MEM, NULL, "Adding to queue outgoing ESP-NOW data failed. Memory allocation fail or no free memory in the heap.");
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
-    ZH_ERROR_CHECK(xQueueSend(_queue_handle, &queue, 1000 / portTICK_PERIOD_MS) == pdTRUE, ESP_FAIL, NULL, "Adding to queue outgoing ESP-NOW data failed. Failed to add data to queue.");
+    ZH_ERROR_CHECK(xQueueSend(_queue_handle, &queue, 1000 / portTICK_PERIOD_MS) == pdTRUE, ESP_FAIL, ++_stats.queue_overflow_error, "Adding to queue outgoing ESP-NOW data failed. Failed to add data to queue.");
     ZH_LOGI("Adding to queue outgoing ESP-NOW data completed successfully.");
     return ESP_OK;
+}
+
+uint8_t zh_espnow_get_version(void)
+{
+    ZH_LOGI("ESP-NOW version receipt started.");
+    uint32_t version = 0;
+    ZH_ERROR_CHECK(esp_now_get_version(&version) == ESP_OK, 0, NULL, "ESP-NOW version receiption failed.");
+    ZH_LOGI("ESP-NOW version receiption successfully.");
+    return (uint8_t)version;
+}
+
+const zh_espnow_stats_t *zh_espnow_get_stats(void)
+{
+    return &_stats;
+}
+
+void zh_espnow_reset_stats(void)
+{
+    ZH_LOGI("Error statistic reset started.");
+    _stats.sent_success = 0;
+    _stats.sent_fail = 0;
+    _stats.received = 0;
+    _stats.espnow_driver_error = 0;
+    _stats.event_post_error = 0;
+    _stats.queue_overflow_error = 0;
+    _stats.min_stack_size = 0;
+    ZH_LOGI("ESP-NOW statistic reset successfully.");
+}
+
+esp_err_t zh_espnow_get_mac(uint8_t *mac_addr)
+{
+    return esp_wifi_get_mac(_init_config.wifi_interface, mac_addr);
 }
 
 static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *config)
@@ -201,6 +234,7 @@ static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info
     }
     if (uxQueueSpacesAvailable(_queue_handle) < _init_config.queue_size / 10)
     {
+        ++_stats.queue_overflow_error;
         ZH_LOGE("Queue is almost full. Dropping incoming ESP-NOW data.", ESP_ERR_INVALID_STATE);
         return;
     }
@@ -218,6 +252,7 @@ static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     if (xQueueSendFromISR(_queue_handle, &queue, &xHigherPriorityTaskWoken) != pdTRUE)
     {
+        ++_stats.queue_overflow_error;
         ZH_LOGE("Failed to add incoming ESP-NOW data to queue.", ESP_ERR_NO_MEM);
         heap_caps_free(queue.data.payload);
         return;
@@ -241,6 +276,7 @@ static void _zh_espnow_process_send(_queue_t *queue)
     memcpy(peer->peer_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
     if (esp_now_add_peer(peer) != ESP_OK)
     {
+        ++_stats.espnow_driver_error;
         ZH_LOGE("Outgoing ESP-NOW data processed failed. Failed to add peer.", ESP_ERR_INVALID_STATE);
         heap_caps_free(queue->data.payload);
         heap_caps_free(peer);
@@ -260,6 +296,7 @@ static void _zh_espnow_process_send(_queue_t *queue)
     {
         if (esp_now_send(queue->data.mac_addr, queue->data.payload, queue->data.payload_len) != ESP_OK)
         {
+            ++_stats.espnow_driver_error;
             ZH_LOGE("Outgoing ESP-NOW data processed failed. ESP-NOW driver error.", ESP_ERR_INVALID_RESPONSE);
             continue;
         }
@@ -282,6 +319,7 @@ static void _zh_espnow_process_send(_queue_t *queue)
     }
     if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), portTICK_PERIOD_MS) != ESP_OK)
     {
+        ++_stats.event_post_error;
         ZH_LOGE("Outgoing ESP-NOW data processed failed. Failed to post send event.", ESP_ERR_INVALID_STATE);
     }
     heap_caps_free(queue->data.payload);
@@ -296,6 +334,7 @@ static void _zh_espnow_process_recv(_queue_t *queue)
     ++_stats.received;
     if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, sizeof(zh_espnow_event_on_recv_t), 1000 / portTICK_PERIOD_MS) != ESP_OK)
     {
+        ++_stats.event_post_error;
         ZH_LOGE("Incoming ESP-NOW data processing failed. Failed to post event.", ESP_ERR_INVALID_STATE);
     }
 }
@@ -316,34 +355,7 @@ static void IRAM_ATTR _zh_espnow_processing(void *pvParameter)
         default:
             break;
         }
+        _stats.min_stack_size = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
     }
     vTaskDelete(NULL);
-}
-
-uint8_t zh_espnow_get_version(void)
-{
-    ZH_LOGI("ESP-NOW version receipt started.");
-    uint32_t version = 0;
-    ZH_ERROR_CHECK(esp_now_get_version(&version) == ESP_OK, 0, NULL, "ESP-NOW version receiption failed.");
-    ZH_LOGI("ESP-NOW version receiption successfully.");
-    return (uint8_t)version;
-}
-
-const zh_espnow_stats_t *zh_espnow_get_stats(void)
-{
-    return &_stats;
-}
-
-void zh_espnow_reset_stats(void)
-{
-    ZH_LOGI("Error statistic reset started.");
-    _stats.sent_success = 0;
-    _stats.sent_fail = 0;
-    _stats.received = 0;
-    ZH_LOGI("ESP-NOW statistic reset successfully.");
-}
-
-esp_err_t zh_espnow_get_mac(uint8_t *mac_addr)
-{
-    return esp_wifi_get_mac(_init_config.wifi_interface, mac_addr);
 }

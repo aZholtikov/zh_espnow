@@ -95,9 +95,13 @@ extern "C"
      */
     typedef struct
     {
-        uint32_t sent_success; /*!< Number of successfully sent messages. */
-        uint32_t sent_fail;    /*!< Number of failed sent messages. */
-        uint32_t received;     /*!< Number of received messages. */
+        uint32_t sent_success;         /*!< Number of successfully sent messages. */
+        uint32_t sent_fail;            /*!< Number of failed sent messages. */
+        uint32_t received;             /*!< Number of received messages. */
+        uint32_t espnow_driver_error;  /*!< Number of espnow driver error. */
+        uint32_t event_post_error;     /*!< Number of event post error. */
+        uint32_t queue_overflow_error; /*!< Number of queue overflow error. */
+        uint32_t min_stack_size;       /*!< Minimum free stack size. */
     } zh_espnow_stats_t;
 
     /**

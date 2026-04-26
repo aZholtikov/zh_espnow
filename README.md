@@ -104,6 +104,10 @@ void app_main(void)
             printf("Number of successfully sent messages: %ld.\n", stats->sent_success);
             printf("Number of failed sent messages: %ld.\n", stats->sent_fail);
             printf("Number of received messages: %ld.\n", stats->received);
+            printf("Number of espnow driver error: %ld.\n", stats->espnow_driver_error);
+            printf("Number of event post error: %ld.\n", stats->event_post_error);
+            printf("Number of queue overflow error: %ld.\n", stats->queue_overflow_error);
+            printf("Minimum free stack size: %ld.\n", stats->min_stack_size);
         }
     }
 }
