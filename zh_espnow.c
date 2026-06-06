@@ -335,6 +335,7 @@ static void _zh_espnow_process_recv(_queue_t *queue)
     if (esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, sizeof(zh_espnow_event_on_recv_t), 1000 / portTICK_PERIOD_MS) != ESP_OK)
     {
         ++_stats.event_post_error;
+        heap_caps_free(recv_data->data);
         ZH_LOGE("Incoming ESP-NOW data processing failed. Failed to post event.", ESP_ERR_INVALID_STATE);
     }
 }
