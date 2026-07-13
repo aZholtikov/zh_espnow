@@ -124,7 +124,6 @@ void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t eve
         printf("Int %d\n", recv_message->int_value);
         printf("Float %f\n", recv_message->float_value);
         printf("Bool %d\n", recv_message->bool_value);
-        heap_caps_free(recv_data->data); // Do not delete to avoid memory leaks!
         break;
     case ZH_ESPNOW_ON_SEND_EVENT:
         zh_espnow_event_on_send_t *send_data = event_data;

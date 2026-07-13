@@ -87,7 +87,7 @@ extern "C"
     {
         uint16_t data_len;                  /*!< Size of the received ESP-NOW message. */
         uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address of the sender ESP-NOW message. */
-        uint8_t *data;                      /*!< Pointer to the data of the received ESP-NOW message. */
+        uint8_t data[];                     /*!< Payload of the received ESP-NOW message. */
     } zh_espnow_event_on_recv_t;
 
     /**
