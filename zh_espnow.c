@@ -33,18 +33,24 @@ static const char *TAG = "zh_espnow";
 #define DATA_SEND_FAIL BIT1
 #define WAIT_CONFIRM_MAX_TIME 50
 
+/**
+ * @brief Internal queue item structure.
+ *
+ * This union/structure is used to pass both send requests and received messages
+ * through the FreeRTOS queue.
+ */
 typedef struct
 {
     enum
     {
-        ON_RECV,
-        TO_SEND,
+        ON_RECV, /*!< Item is a received message to be processed. */
+        TO_SEND, /*!< Item is a send request. */
     } id;
     struct
     {
-        uint16_t payload_len;
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN];
-        uint8_t *payload;
+        uint16_t payload_len;               /*!< Length of the payload. */
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address (source for receive, destination for send). */
+        uint8_t *payload;                   /*!< Pointer to the payload data (heap-allocated). */
     } data;
 } _queue_t;
 
