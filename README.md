@@ -1,5 +1,9 @@
 # ESP32 ESP-IDF component for ESP-NOW interface
 
+## Wiki
+
+[EN](WIKI_EN.md) | [RU](WIKI_RU.md)
+
 ## Tested on
 
 1. [ESP32 ESP-IDF v6.0.0](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/index.html)
@@ -40,103 +44,6 @@ In the application, add the component:
 #include "zh_espnow.h"
 ```
 
-## Example
+## Examples
 
-Sending and receiving messages:
-
-```c
-#include "nvs_flash.h"
-#include "esp_netif.h"
-#include "zh_espnow.h"
-#include "esp_random.h"
-
-#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
-
-void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-
-uint8_t target[6] = {0xEC, 0x94, 0xCB, 0x87, 0xEC, 0xFC};
-
-typedef struct
-{
-    float float_value;
-    int int_value;
-    char char_value[30];
-    bool bool_value;
-} example_message_t;
-
-void app_main(void)
-{
-    esp_log_level_set("zh_espnow", ESP_LOG_ERROR);
-    nvs_flash_init();
-    esp_netif_init();
-    esp_event_loop_create_default();
-    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&wifi_init_config);
-    esp_wifi_set_mode(WIFI_MODE_STA);
-    esp_wifi_start();
-    zh_espnow_init_config_t config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
-    config.task_priority = 10;
-    config.stack_size = 2048;
-    config.queue_size = 5;
-    zh_espnow_init(&config);
-    esp_event_handler_instance_register(ZH_ESPNOW, ESP_EVENT_ANY_ID, &zh_espnow_event_handler, NULL, NULL);
-    example_message_t send_message = {0};
-    strcpy(send_message.char_value, "THIS IS A CHAR");
-    send_message.float_value = 1.234;
-    send_message.bool_value = false;
-    printf("ESP-NOW version %d.\n", zh_espnow_get_version());
-    uint8_t node_mac[6] = {0};
-    zh_espnow_get_mac(node_mac);
-    printf("ESP-NOW MAC %02X:%02X:%02X:%02X:%02X:%02X.\n", MAC2STR(node_mac));
-    uint8_t counter = 0;
-    for (;;)
-    {
-        ++counter;
-        send_message.int_value = esp_random();
-        zh_espnow_send(NULL, (uint8_t *)&send_message, sizeof(send_message));
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        zh_espnow_send(target, (uint8_t *)&send_message, sizeof(send_message));
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        if (counter == 10)
-        {
-            counter = 0;
-            const zh_espnow_stats_t *stats = zh_espnow_get_stats();
-            printf("Number of successfully sent messages: %ld.\n", stats->sent_success);
-            printf("Number of failed sent messages: %ld.\n", stats->sent_fail);
-            printf("Number of received messages: %ld.\n", stats->received);
-            printf("Number of espnow driver error: %ld.\n", stats->espnow_driver_error);
-            printf("Number of event post error: %ld.\n", stats->event_post_error);
-            printf("Number of queue overflow error: %ld.\n", stats->queue_overflow_error);
-            printf("Minimum free stack size: %ld.\n", stats->min_stack_size);
-        }
-    }
-}
-
-void zh_espnow_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    switch (event_id)
-    {
-    case ZH_ESPNOW_ON_RECV_EVENT:
-        zh_espnow_event_on_recv_t *recv_data = event_data;
-        printf("Message from MAC %02X:%02X:%02X:%02X:%02X:%02X is received. Data lenght %d bytes.\n", MAC2STR(recv_data->mac_addr), recv_data->data_len);
-        example_message_t *recv_message = (example_message_t *)recv_data->data;
-        printf("Char %s\n", recv_message->char_value);
-        printf("Int %d\n", recv_message->int_value);
-        printf("Float %f\n", recv_message->float_value);
-        printf("Bool %d\n", recv_message->bool_value);
-        break;
-    case ZH_ESPNOW_ON_SEND_EVENT:
-        zh_espnow_event_on_send_t *send_data = event_data;
-        if (send_data->status == ZH_ESPNOW_SEND_SUCCESS)
-        {
-            printf("Message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent success.\n", MAC2STR(send_data->mac_addr));
-        }
-        else
-        {
-            printf("Message to MAC %02X:%02X:%02X:%02X:%02X:%02X sent fail.\n", MAC2STR(send_data->mac_addr));
-        }
-    default:
-        break;
-    }
-}
-```
+See Wiki [EN](WIKI_EN.md#usage-examples) | [RU](WIKI_RU.md#примеры-использования)
