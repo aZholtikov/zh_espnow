@@ -138,7 +138,7 @@ esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint1
     ZH_ERROR_CHECK(queue.data.payload != NULL, ESP_ERR_NO_MEM, NULL, "Adding to queue outgoing ESP-NOW data failed. Memory allocation fail or no free memory in the heap.");
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
-    ZH_ERROR_CHECK(xQueueSend(_queue_handle, &queue, 1000 / portTICK_PERIOD_MS) == pdTRUE, ESP_FAIL, ++_stats.queue_overflow_error; heap_caps_free(queue.data.payload), "Adding to queue outgoing ESP-NOW data failed. Failed to add data to queue.");
+    ZH_ERROR_CHECK(xQueueSend(_queue_handle, &queue, 1000 / portTICK_PERIOD_MS) == pdTRUE, ESP_FAIL, ++_stats.queue_overflow_error; heap_caps_free(queue.data.payload); queue.data.payload = NULL, "Adding to queue outgoing ESP-NOW data failed. Failed to add data to queue.");
     ZH_LOGI("Adding to queue outgoing ESP-NOW data completed successfully.");
     return ESP_OK;
 }
@@ -250,7 +250,8 @@ static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info
     memcpy(queue.data.payload, data, data_len);
     queue.data.payload_len = data_len;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    ZH_ERROR_CHECK_VOID(xQueueSendFromISR(_queue_handle, &queue, &xHigherPriorityTaskWoken) == pdTRUE, ++_stats.queue_overflow_error; heap_caps_free(queue.data.payload), "Failed to add incoming ESP-NOW data to queue.");
+    ZH_ERROR_CHECK_VOID(xQueueSendFromISR(_queue_handle, &queue, &xHigherPriorityTaskWoken) == pdTRUE, ++_stats.queue_overflow_error;
+                        heap_caps_free(queue.data.payload); queue.data.payload = NULL, "Failed to add incoming ESP-NOW data to queue.");
     if (xHigherPriorityTaskWoken == pdTRUE)
     {
         portYIELD_FROM_ISR();
@@ -260,12 +261,14 @@ static void IRAM_ATTR _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info
 static void _zh_espnow_process_send(_queue_t *queue)
 {
     esp_now_peer_info_t *peer = heap_caps_calloc(1, sizeof(esp_now_peer_info_t), MALLOC_CAP_8BIT);
-    ZH_ERROR_CHECK_VOID(peer != NULL, heap_caps_free(queue->data.payload), "Outgoing ESP-NOW data processed failed. Failed to allocate memory.");
+    ZH_ERROR_CHECK_VOID(peer != NULL, heap_caps_free(queue->data.payload); queue->data.payload = NULL, "Outgoing ESP-NOW data processed failed. Failed to allocate memory.");
     peer->ifidx = _init_config.wifi_interface;
     memcpy(peer->peer_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
-    ZH_ERROR_CHECK_VOID(esp_now_add_peer(peer) == ESP_OK, ++_stats.espnow_driver_error; heap_caps_free(queue->data.payload); heap_caps_free(peer), "Outgoing ESP-NOW data processed failed. Failed to add peer.");
+    ZH_ERROR_CHECK_VOID(esp_now_add_peer(peer) == ESP_OK, ++_stats.espnow_driver_error; heap_caps_free(queue->data.payload); queue->data.payload = NULL;
+                        heap_caps_free(peer); peer = NULL, "Outgoing ESP-NOW data processed failed. Failed to add peer.");
     zh_espnow_event_on_send_t *on_send = heap_caps_calloc(1, sizeof(zh_espnow_event_on_send_t), MALLOC_CAP_8BIT);
-    ZH_ERROR_CHECK_VOID(on_send != NULL, heap_caps_free(queue->data.payload); esp_now_del_peer(peer->peer_addr); heap_caps_free(peer), "Outgoing ESP-NOW data processed failed. Failed to allocate memory.");
+    ZH_ERROR_CHECK_VOID(on_send != NULL, heap_caps_free(queue->data.payload); queue->data.payload = NULL; esp_now_del_peer(peer->peer_addr);
+                        heap_caps_free(peer); peer = NULL, "Outgoing ESP-NOW data processed failed. Failed to allocate memory.");
     memcpy(on_send->mac_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
     on_send->status = ZH_ESPNOW_SEND_FAIL;
     for (uint8_t attempt = 0; attempt < _init_config.attempts; ++attempt)
@@ -285,28 +288,34 @@ static void _zh_espnow_process_send(_queue_t *queue)
     }
     // clang-format off
     ZH_ERROR_CHECK_VOID(esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_SEND_EVENT, on_send, sizeof(zh_espnow_event_on_send_t), 1000 / portTICK_PERIOD_MS) == ESP_OK,
-                        ++_stats.event_post_error; heap_caps_free(queue->data.payload); esp_now_del_peer(peer->peer_addr); heap_caps_free(peer); heap_caps_free(on_send), "Outgoing ESP-NOW data processed failed. Failed to post send event.");
+                        ++_stats.event_post_error; heap_caps_free(queue->data.payload); queue->data.payload = NULL; esp_now_del_peer(peer->peer_addr);
+                        heap_caps_free(peer); peer = NULL; heap_caps_free(on_send); on_send = NULL, "Outgoing ESP-NOW data processed failed. Failed to post send event.");
     // clang-format on
     heap_caps_free(queue->data.payload);
+    queue->data.payload = NULL;
     esp_now_del_peer(peer->peer_addr);
     heap_caps_free(peer);
+    peer = NULL;
     heap_caps_free(on_send);
+    on_send = NULL;
 }
 
 static void _zh_espnow_process_recv(_queue_t *queue)
 {
     zh_espnow_event_on_recv_t *recv_data = heap_caps_calloc(1, (sizeof(zh_espnow_event_on_recv_t) + queue->data.payload_len), MALLOC_CAP_8BIT);
-    ZH_ERROR_CHECK_VOID(recv_data != NULL, heap_caps_free(queue->data.payload), "Incoming ESP-NOW data processing failed. Memory allocation failed.");
+    ZH_ERROR_CHECK_VOID(recv_data != NULL, heap_caps_free(queue->data.payload); queue->data.payload = NULL, "Incoming ESP-NOW data processing failed. Memory allocation failed.");
     memcpy(recv_data->mac_addr, queue->data.mac_addr, ESP_NOW_ETH_ALEN);
     recv_data->data_len = queue->data.payload_len;
     memcpy(recv_data->data, queue->data.payload, queue->data.payload_len);
     ++_stats.received;
     // clang-format off
     ZH_ERROR_CHECK_VOID(esp_event_post(ZH_ESPNOW, ZH_ESPNOW_ON_RECV_EVENT, recv_data, (sizeof(zh_espnow_event_on_recv_t) + queue->data.payload_len), 1000 / portTICK_PERIOD_MS) == ESP_OK,
-                        ++_stats.event_post_error; heap_caps_free(recv_data); heap_caps_free(queue->data.payload), "Incoming ESP-NOW data processing failed. Failed to post event.");
+                        ++_stats.event_post_error; heap_caps_free(recv_data); recv_data = NULL; heap_caps_free(queue->data.payload); queue->data.payload = NULL, "Incoming ESP-NOW data processing failed. Failed to post event.");
     // clang-format on
     heap_caps_free(recv_data);
+    recv_data = NULL;
     heap_caps_free(queue->data.payload);
+    queue->data.payload = NULL;
 }
 
 static void IRAM_ATTR _zh_espnow_processing(void *pvParameter)
