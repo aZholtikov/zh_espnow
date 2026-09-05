@@ -29,9 +29,9 @@ static const char *TAG = "zh_espnow";
         continue;                                    \
     }
 
-#define DATA_SEND_SUCCESS BIT0
-#define DATA_SEND_FAIL BIT1
-#define WAIT_CONFIRM_MAX_TIME 50
+#define DATA_SEND_SUCCESS BIT0   /*!< Event group bit set when ESP-NOW send operation succeeds */
+#define DATA_SEND_FAIL BIT1      /*!< Event group bit set when ESP-NOW send operation fails */
+#define WAIT_CONFIRM_MAX_TIME 50 /*!< Maximum time (in ticks) to wait for send confirmation from the ESP-NOW driver */
 
 /**
  * @brief Internal queue item structure.
@@ -43,44 +43,157 @@ typedef struct
 {
     enum
     {
-        ON_RECV, /*!< Item is a received message to be processed. */
-        TO_SEND, /*!< Item is a send request. */
+        ON_RECV, /*!< Item is a received message to be processed */
+        TO_SEND, /*!< Item is a send request */
     } id;
     struct
     {
-        uint16_t payload_len;               /*!< Length of the payload. */
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address (source for receive, destination for send). */
-        uint8_t *payload;                   /*!< Pointer to the payload data (heap-allocated). */
+        uint16_t payload_len;               /*!< Length of the payload */
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address (source for receive, destination for send) */
+        uint8_t *payload;                   /*!< Pointer to the payload data (heap-allocated) */
     } data;
 } _queue_t;
 
-TaskHandle_t zh_espnow = NULL;
-static EventGroupHandle_t _event_group_handle = NULL;
-static QueueHandle_t _queue_handle = NULL;
-static zh_espnow_init_config_t _init_config = {0};
-static zh_espnow_stats_t _stats = {0};
-volatile static bool _is_initialized = false;
-static const uint8_t _broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+TaskHandle_t zh_espnow = NULL;                                                                /*!< Handle of the internal ESP-NOW processing task */
+static EventGroupHandle_t _event_group_handle = NULL;                                         /*!< FreeRTOS event group for synchronization between callbacks and processing task */
+static QueueHandle_t _queue_handle = NULL;                                                    /*!< FreeRTOS queue for passing send requests and received messages between callbacks and processing task */
+static zh_espnow_init_config_t _init_config = {0};                                            /*!< Stored initialization configuration copied from the user-provided config */
+static zh_espnow_stats_t _stats = {0};                                                        /*!< Runtime statistics counters for sent/received messages and errors */
+volatile static bool _is_initialized = false;                                                 /*!< Flag indicating whether the module has been successfully initialized */
+static const uint8_t _broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; /*!< Predefined broadcast MAC address used when target is NULL */
 #if defined ESP_NOW_MAX_DATA_LEN_V2
-volatile static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN_V2;
+volatile static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN_V2; /*!< Maximum message size for ESP-IDF >= 5.x with V2 support (1490 bytes) */
 #else
-volatile static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN;
+volatile static uint16_t _max_message_size = ESP_NOW_MAX_DATA_LEN; /*!< Maximum message size for older ESP-IDF versions (250 bytes) */
 #endif
 
+/**
+ * @brief Validate the initialization configuration parameters.
+ *
+ * Checks that all configuration values are within acceptable ranges:
+ * WiFi channel (1-14), task priority (>= 1), stack size (>= minimal),
+ * queue size (>= 1), and retry attempts (>= 1).
+ *
+ * @param config Pointer to the configuration structure to validate
+ *
+ * @return ESP_OK if all parameters are valid
+ * @return ESP_ERR_INVALID_ARG if any parameter is out of range
+ */
 static esp_err_t _zh_espnow_validate_config(const zh_espnow_init_config_t *config);
+
+/**
+ * @brief Initialize WiFi and ESP-NOW driver.
+ *
+ * Sets the WiFi channel, configures supported protocols (B/G/N, and LR on non-ESP32-C2 targets),
+ * and initializes the ESP-NOW driver.
+ *
+ * @param config Pointer to the initialization configuration containing WiFi settings
+ *
+ * @return ESP_OK on success
+ * @return ESP_FAIL if any WiFi or ESP-NOW initialization step fails
+ */
 static esp_err_t _zh_espnow_wifi_init(const zh_espnow_init_config_t *config);
+
+/**
+ * @brief Create internal FreeRTOS resources (event group and queue).
+ *
+ * Allocates the event group used for send confirmation synchronization
+ * and the queue used for passing messages between callbacks and the processing task.
+ *
+ * @param config Pointer to the initialization configuration containing queue size
+ *
+ * @return ESP_OK on success
+ * @return ESP_FAIL if memory allocation for event group or queue fails
+ */
 static esp_err_t _zh_espnow_resources_init(const zh_espnow_init_config_t *config);
+
+/**
+ * @brief Create the internal processing task.
+ *
+ * Creates a FreeRTOS task that handles all ESP-NOW send and receive processing.
+ * The task is not pinned to any core (tskNO_AFFINITY).
+ *
+ * @param config Pointer to the initialization configuration containing task parameters
+ *
+ * @return ESP_OK on success
+ * @return ESP_FAIL if task creation fails
+ */
 static esp_err_t _zh_espnow_task_init(const zh_espnow_init_config_t *config);
+
+/**
+ * @brief Register ESP-NOW send and receive callbacks.
+ *
+ * Always registers the send callback. The receive callback is registered
+ * only when battery_mode is false (i.e., the node is not in battery-saving mode).
+ *
+ * @param battery_mode if true, skip receive callback registration to save power
+ *
+ * @return ESP_OK on success
+ * @return ESP_FAIL if callback registration fails
+ */
 static esp_err_t _zh_espnow_callbacks_register(bool battery_mode);
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+/**
+ * @brief ESP-NOW send callback (IRAM).
+ *
+ * Called by the ESP-NOW driver upon completion of a send operation.
+ * Sets the corresponding bit in the event group to notify the processing task
+ * whether the send succeeded or failed.
+ *
+ * @param esp_now_info Pointer to send info
+ * @param status Send status (ESP_NOW_SEND_SUCCESS or ESP_NOW_SEND_FAIL)
+ */
 static void _zh_espnow_send_cb(const esp_now_send_info_t *esp_now_info, esp_now_send_status_t status);
 #else
+/**
+ * @brief ESP-NOW send callback (IRAM).
+ *
+ * Called by the ESP-NOW driver upon completion of a send operation.
+ * Sets the corresponding bit in the event group to notify the processing task
+ * whether the send succeeded or failed.
+ *
+ * @param mac_addr Pointer to send info
+ * @param status Send status (ESP_NOW_SEND_SUCCESS or ESP_NOW_SEND_FAIL)
+ */
 static void _zh_espnow_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status);
 #endif
 static void _zh_espnow_recv_cb(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
+
+/**
+ * @brief Process an outgoing ESP-NOW message from the queue.
+ *
+ * Adds the target peer, attempts to send the payload with retries, waits for
+ * confirmation via the event group, and posts a send completion event to the
+ * ESP event loop. Frees all allocated memory upon completion.
+ *
+ * @param queue Pointer to the queue item containing the send request
+ */
 static void _zh_espnow_process_send(_queue_t *queue);
+
+/**
+ * @brief ESP-NOW receive callback.
+ *
+ * Called by the ESP-NOW driver upon receiving a message. Copies the received data
+ * into a heap-allocated buffer and sends it through the internal queue for
+ * asynchronous processing by the task. Drops the message if the queue is almost full
+ * or if memory allocation fails.
+ *
+ * @param esp_now_info Pointer to receive info containing source address and metadata
+ * @param data Pointer to the received payload data
+ * @param data_len Length of the received payload in bytes
+ */
 static void _zh_espnow_process_recv(_queue_t *queue);
+
+/**
+ * @brief Internal ESP-NOW processing task entry point.
+ *
+ * Main loop that receives items from the internal queue and dispatches them
+ * to the appropriate handler (_zh_espnow_process_send or _zh_espnow_process_recv).
+ * Tracks minimum stack water mark for monitoring.
+ *
+ * @param pvParameter Unused parameter (task standard signature)
+ */
 static void _zh_espnow_processing(void *pvParameter);
 
 ESP_EVENT_DEFINE_BASE(ZH_ESPNOW);
@@ -318,8 +431,9 @@ static void _zh_espnow_process_recv(_queue_t *queue)
     queue->data.payload = NULL;
 }
 
-static void IRAM_ATTR _zh_espnow_processing(void *pvParameter)
+static void _zh_espnow_processing(void *pvParameter)
 {
+    (void)pvParameter;
     _queue_t queue = {0};
     while (xQueueReceive(_queue_handle, &queue, portMAX_DELAY) == pdTRUE)
     {

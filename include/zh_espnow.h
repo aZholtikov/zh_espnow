@@ -37,15 +37,6 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 
-/**
- * @brief Default initialization configuration for ESP-NOW interface.
- *
- * This macro provides a convenient way to initialise a `zh_espnow_init_config_t` structure with safe default values.
- *
- * @code
- * zh_espnow_init_config_t config = ZH_ESPNOW_INIT_CONFIG_DEFAULT();
- * @endcode
- */
 #define ZH_ESPNOW_INIT_CONFIG_DEFAULT()         \
     {                                           \
         .task_priority = 1,                     \
@@ -61,7 +52,7 @@ extern "C"
 {
 #endif
 
-    extern TaskHandle_t zh_espnow; /*!< Handle of the internal ESP-NOW processing task. */
+    extern TaskHandle_t zh_espnow; /*!< Handle of the internal ESP-NOW processing task */
 
     /**
      * @brief Initial configuration structure for the ESP-NOW interface.
@@ -71,13 +62,13 @@ extern "C"
      */
     typedef struct
     {
-        uint16_t stack_size;             /*!< Stack size (in bytes) for the internal processing task. @note Recommended value is 2048. */
-        uint8_t task_priority;           /*!< Priority of the processing task. @note Recommended value is 5. */
-        uint8_t queue_size;              /*!< Size of the internal FreeRTOS queue (number of items). @note Recommended value is 10. */
-        uint8_t wifi_channel;            /*!< Wi-Fi channel used for ESP-NOW communication (1-13). */
-        uint8_t attempts;                /*!< Maximum number of retry attempts for sending a message. @note It is not recommended to set a value greater than 10. */
-        bool battery_mode;               /*!< If true, the node does not register a receive callback (receive is disabled). */
-        wifi_interface_t wifi_interface; /*!< Wi-Fi interface (STA or AP) to use for ESP-NOW. */
+        uint16_t stack_size;             /*!< Stack size (in bytes) for the internal processing task. @note Recommended value is 2048 */
+        uint8_t task_priority;           /*!< Priority of the processing task. @note Recommended value is 5 */
+        uint8_t queue_size;              /*!< Size of the internal FreeRTOS queue (number of items). @note Recommended value is 10 */
+        uint8_t wifi_channel;            /*!< Wi-Fi channel used for ESP-NOW communication (1-13) */
+        uint8_t attempts;                /*!< Maximum number of retry attempts for sending a message. @note It is not recommended to set a value greater than 10 */
+        bool battery_mode;               /*!< If true, the node does not register a receive callback (receive is disabled) */
+        wifi_interface_t wifi_interface; /*!< Wi-Fi interface (STA or AP) to use for ESP-NOW */
     } zh_espnow_init_config_t;
 
     ESP_EVENT_DECLARE_BASE(ZH_ESPNOW);
@@ -87,8 +78,8 @@ extern "C"
      */
     typedef enum
     {
-        ZH_ESPNOW_ON_RECV_EVENT, /*!< A message has been received. The event data is a `zh_espnow_event_on_recv_t` structure. */
-        ZH_ESPNOW_ON_SEND_EVENT  /*!< A transmission attempt has completed (success or failure). The event data is a `zh_espnow_event_on_send_t` structure. */
+        ZH_ESPNOW_ON_RECV_EVENT, /*!< A message has been received */
+        ZH_ESPNOW_ON_SEND_EVENT  /*!< A transmission attempt has completed (success or failure) */
     } zh_espnow_event_type_t;
 
     /**
@@ -96,8 +87,8 @@ extern "C"
      */
     typedef enum
     {
-        ZH_ESPNOW_SEND_SUCCESS, /*!< The message was successfully sent and acknowledged. */
-        ZH_ESPNOW_SEND_FAIL     /*!< The message could not be sent (all retry attempts failed). */
+        ZH_ESPNOW_SEND_SUCCESS, /*!< The message was successfully sent and acknowledged */
+        ZH_ESPNOW_SEND_FAIL     /*!< The message could not be sent (all retry attempts failed) */
     } zh_espnow_on_send_event_type_t;
 
     /**
@@ -109,8 +100,8 @@ extern "C"
      */
     typedef struct
     {
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN];    /*!< MAC address of the target device. */
-        zh_espnow_on_send_event_type_t status; /*!< Status of the send operation. */
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN];    /*!< MAC address of the target device */
+        zh_espnow_on_send_event_type_t status; /*!< Status of the send operation */
     } zh_espnow_event_on_send_t;
 
     /**
@@ -123,9 +114,9 @@ extern "C"
      */
     typedef struct
     {
-        uint16_t data_len;                  /*!< Length of the received payload in bytes. */
-        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address of the sender. */
-        uint8_t data[];                     /*!< Flexible array member holding the received payload. */
+        uint16_t data_len;                  /*!< Length of the received payload in bytes */
+        uint8_t mac_addr[ESP_NOW_ETH_ALEN]; /*!< MAC address of the sender */
+        uint8_t data[];                     /*!< Flexible array member holding the received payload */
     } zh_espnow_event_on_recv_t;
 
     /**
@@ -135,13 +126,13 @@ extern "C"
      */
     typedef struct
     {
-        uint32_t sent_success;         /*!< Number of successfully sent messages. */
-        uint32_t sent_fail;            /*!< Number of failed sent messages. */
-        uint32_t received;             /*!< Number of received messages (only if receive is enabled). */
-        uint32_t espnow_driver_error;  /*!< Number of errors returned by the ESP-NOW driver. */
-        uint32_t event_post_error;     /*!< Number of failures when posting events to the event loop. */
-        uint32_t queue_overflow_error; /*!< Number of times the internal queue overflowed (dropped messages). */
-        uint32_t min_stack_size;       /*!< Minimum free stack size (in bytes) of the processing task. */
+        uint32_t sent_success;         /*!< Number of successfully sent messages */
+        uint32_t sent_fail;            /*!< Number of failed sent messages */
+        uint32_t received;             /*!< Number of received messages (only if receive is enabled) */
+        uint32_t espnow_driver_error;  /*!< Number of errors returned by the ESP-NOW driver */
+        uint32_t event_post_error;     /*!< Number of failures when posting events to the event loop */
+        uint32_t queue_overflow_error; /*!< Number of times the internal queue overflowed (dropped messages) */
+        uint32_t min_stack_size;       /*!< Minimum free stack size (in bytes) of the processing task */
     } zh_espnow_stats_t;
 
     /**
@@ -154,13 +145,13 @@ extern "C"
      * @warning This function must not be called twice without an intervening zh_espnow_deinit(). Doing so will return `ESP_ERR_INVALID_STATE`.
      * @warning The caller must ensure that Wi-Fi is already initialised and started before calling this function.
      *
-     * @param[in] config Pointer to the initialization configuration. Must not be NULL.
+     * @param[in] config Pointer to the initialization configuration (must not be NULL)
      *
-     * @return ESP_OK on success.
-     * @return ESP_ERR_INVALID_ARG if config is NULL or contains invalid values.
-     * @return ESP_ERR_INVALID_STATE if the module is already initialised.
-     * @return ESP_ERR_NO_MEM if memory allocation fails (queue, event group, etc.).
-     * @return ESP_FAIL if any internal initialization step fails.
+     * @return ESP_OK on success
+     * @return ESP_ERR_INVALID_ARG if config is NULL or contains invalid values
+     * @return ESP_ERR_INVALID_STATE if the module is already initialised
+     * @return ESP_ERR_NO_MEM if memory allocation fails (queue, event group, etc.)
+     * @return ESP_FAIL if any internal initialization step fails
      */
     esp_err_t zh_espnow_init(const zh_espnow_init_config_t *config);
 
@@ -173,9 +164,9 @@ extern "C"
      *          The caller must ensure that all other accesses to the module have completed before invoking zh_espnow_deinit().
      * @note Safe to call even if the module is not initialised (returns ESP_ERR_NOT_FOUND).
      *
-     * @return ESP_OK on success.
-     * @return ESP_ERR_NOT_FOUND if the module was not initialised.
-     * @return ESP_FAIL if deinitialization fails (e.g., driver unregister failure).
+     * @return ESP_OK on success
+     * @return ESP_ERR_NOT_FOUND if the module was not initialised
+     * @return ESP_FAIL if deinitialization fails (e.g., driver unregister failure)
      */
     esp_err_t zh_espnow_deinit(void);
 
@@ -189,22 +180,22 @@ extern "C"
      * @note The queue size is limited; if the queue is almost full (less than 10% of its capacity is free), the function returns ESP_ERR_INVALID_STATE to prevent overflow.
      * @note The target MAC address can be the broadcast address (all 0xFF) for sending to all peers. If `target` is NULL, the broadcast address is used.
      *
-     * @param[in] target Pointer to a 6-byte MAC address. If NULL, broadcast is used.
-     * @param[in] data Pointer to the payload data to be sent. Must not be NULL.
-     * @param[in] data_len Length of the payload in bytes. Must be > 0 and <= the maximum ESP-NOW data length (250 or 1490 bytes).
+     * @param[in] target Pointer to a 6-byte MAC address. If NULL, broadcast is used
+     * @param[in] data Pointer to the payload data to be sent (must not be NULL)
+     * @param[in] data_len Length of the payload in bytes. Must be > 0 and <= the maximum ESP-NOW data length (250 or 1490 bytes)
      *
-     * @return ESP_OK on success.
-     * @return ESP_ERR_INVALID_ARG if data is NULL, data_len is zero or exceeds the limit.
-     * @return ESP_ERR_INVALID_STATE if the module is not initialised or the queue is almost full.
-     * @return ESP_ERR_NO_MEM if memory allocation for the internal copy fails.
-     * @return ESP_FAIL if sending to the queue fails (e.g., timeout).
+     * @return ESP_OK on success
+     * @return ESP_ERR_INVALID_ARG if data is NULL, data_len is zero or exceeds the limit
+     * @return ESP_ERR_INVALID_STATE if the module is not initialised or the queue is almost full
+     * @return ESP_ERR_NO_MEM if memory allocation for the internal copy fails
+     * @return ESP_FAIL if sending to the queue fails (e.g., timeout)
      */
     esp_err_t zh_espnow_send(const uint8_t *target, const uint8_t *data, const uint16_t data_len);
 
     /**
      * @brief Get the ESP-NOW version.
      *
-     * @return The version number as an unsigned 8-bit integer, or 0 on failure.
+     * @return The version number as an unsigned 8-bit integer, or 0 on failure
      */
     uint8_t zh_espnow_get_version(void);
 
@@ -214,7 +205,7 @@ extern "C"
      * The returned pointer is valid as long as the module is initialised.
      * The statistics are updated internally in real time.
      *
-     * @return Pointer to the statistics structure (const).
+     * @return Pointer to the statistics structure
      */
     const zh_espnow_stats_t *zh_espnow_get_stats(void);
 
@@ -228,11 +219,11 @@ extern "C"
     /**
      * @brief Retrieve the MAC address of the Wi-Fi interface used by ESP-NOW.
      *
-     * @param[out] mac_addr Pointer to a 6-byte buffer where the MAC address will be stored.
+     * @param[out] mac_addr Pointer to a 6-byte buffer where the MAC address will be stored (must not be NULL)
      *
-     * @return ESP_OK on success.
-     * @return ESP_ERR_INVALID_ARG if mac_addr is NULL.
-     * @return Other errors from esp_wifi_get_mac().
+     * @return ESP_OK on success
+     * @return ESP_ERR_INVALID_ARG if mac_addr is NULL
+     * @return Other errors from esp_wifi_get_mac()
      */
     esp_err_t zh_espnow_get_mac(uint8_t *mac_addr);
 
