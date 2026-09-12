@@ -1,9 +1,5 @@
 # ESP32 ESP-IDF component for ESP-NOW interface
 
-## SAST Tools
-
-[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
-
 ## Features
 
 1. The maximum size of the transmitted data is up to 250 / 1490 bytes. Please see attention for details.
